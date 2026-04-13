@@ -1,0 +1,11 @@
+backend/.cache/
+backend/coverage.out
+backend/dnswatcher-api
+frontend/dist/
+frontend/node_modules/
+frontend/coverage/
+frontend/.vite/
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg
+frontend/src/assets/hero.png
+.DS_Store

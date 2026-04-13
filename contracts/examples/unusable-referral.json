@@ -1,0 +1,83 @@
+{
+  "trace_id": "trace_unusable_referral",
+  "input_domain": "bad.example.com",
+  "normalized_domain": "bad.example.com",
+  "qtype": "A",
+  "started_at": "2026-04-13T00:00:00Z",
+  "completed_at": "2026-04-13T00:00:01Z",
+  "total_duration_ms": 180,
+  "status": "failure",
+  "final_outcome": {
+    "kind": "unusable_referral",
+    "rcode": "NOERROR",
+    "message": "A referral was received, but no safe usable next target remained.",
+    "terminal_hop_index": 1
+  },
+  "hops": [
+    {
+      "index": 0,
+      "parent_index": null,
+      "role": "root",
+      "hop_purpose": "delegation",
+      "zone_context": ".",
+      "server_name": "a.root-servers.net.",
+      "server_ip": "198.41.0.4",
+      "qname": "bad.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 12,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "referral",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "com.", "type": "NS", "ttl": 172800, "data": ["a.gtld-servers.net."] }
+      ],
+      "additional_rrsets": [
+        { "section": "additional", "name": "a.gtld-servers.net.", "type": "A", "ttl": 172800, "data": ["192.5.6.30"] }
+      ],
+      "next_targets": [
+        { "server_name": "a.gtld-servers.net.", "server_ip": "192.5.6.30", "zone_context": "com.", "reason": "Glue from root referral." }
+      ],
+      "explanation": "The root server referred the trace toward .com.",
+      "technical_note": "The authority section contained .com NS records with glue."
+    },
+    {
+      "index": 1,
+      "parent_index": null,
+      "role": "error",
+      "hop_purpose": "delegation",
+      "zone_context": "com.",
+      "server_name": "a.gtld-servers.net.",
+      "server_ip": "192.5.6.30",
+      "qname": "bad.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 16,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "error",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "example.com.", "type": "NS", "ttl": 172800, "data": ["ns1.private.example."] }
+      ],
+      "additional_rrsets": [],
+      "next_targets": [],
+      "explanation": "The referral did not yield any safe usable next-hop server addresses.",
+      "technical_note": "Missing or blocked nameserver addresses caused the backend to stop with an unusable referral."
+    }
+  ],
+  "summary": {
+    "headline": "Referral could not be followed safely.",
+    "detail": "The backend received a referral, but the next-hop nameserver addresses were missing, blocked, or unusable.",
+    "total_hops": 2,
+    "answer_count": 0,
+    "cname_count": 0
+  },
+  "truth_notes": [
+    { "code": "backend_trace_service", "message": "Traces are performed by the backend trace service." },
+    { "code": "not_user_resolver_path", "message": "Timings reflect the backend service path, not the user's resolver path." }
+  ]
+}

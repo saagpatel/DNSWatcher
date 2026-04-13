@@ -1,0 +1,38 @@
+app = "dnswatcher"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "8080"
+  DNSWATCHER_STATIC_DIR = "/app/frontend/dist"
+  DNSWATCHER_RATE_LIMIT_PER_MINUTE = "20"
+  DNSWATCHER_RATE_LIMIT_BURST = "5"
+  DNSWATCHER_MAX_CONCURRENT_TRACES = "8"
+  DNSWATCHER_READ_HEADER_TIMEOUT = "5s"
+  DNSWATCHER_READ_TIMEOUT = "10s"
+  DNSWATCHER_WRITE_TIMEOUT = "30s"
+  DNSWATCHER_IDLE_TIMEOUT = "60s"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    path = "/healthz"
+    protocol = "http"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

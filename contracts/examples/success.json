@@ -1,0 +1,113 @@
+{
+  "trace_id": "trace_success",
+  "input_domain": "example.com",
+  "normalized_domain": "example.com",
+  "qtype": "A",
+  "started_at": "2026-04-13T00:00:00Z",
+  "completed_at": "2026-04-13T00:00:01Z",
+  "total_duration_ms": 124,
+  "status": "success",
+  "final_outcome": {
+    "kind": "success",
+    "rcode": "NOERROR",
+    "message": "Authoritative answer returned.",
+    "terminal_hop_index": 2
+  },
+  "hops": [
+    {
+      "index": 0,
+      "parent_index": null,
+      "role": "root",
+      "hop_purpose": "delegation",
+      "zone_context": ".",
+      "server_name": "a.root-servers.net.",
+      "server_ip": "198.41.0.4",
+      "qname": "example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 12,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "referral",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "com.", "type": "NS", "ttl": 172800, "data": ["a.gtld-servers.net."] }
+      ],
+      "additional_rrsets": [
+        { "section": "additional", "name": "a.gtld-servers.net.", "type": "A", "ttl": 172800, "data": ["192.5.6.30"] }
+      ],
+      "next_targets": [
+        { "server_name": "a.gtld-servers.net.", "server_ip": "192.5.6.30", "zone_context": "com.", "reason": "Glue from root referral." }
+      ],
+      "explanation": "The root server referred the trace to the .com nameservers.",
+      "technical_note": "Authority section contains NS records and glue was available in additional records."
+    },
+    {
+      "index": 1,
+      "parent_index": null,
+      "role": "tld",
+      "hop_purpose": "delegation",
+      "zone_context": "com.",
+      "server_name": "a.gtld-servers.net.",
+      "server_ip": "192.5.6.30",
+      "qname": "example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 19,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "referral",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "example.com.", "type": "NS", "ttl": 172800, "data": ["ns1.example.com."] }
+      ],
+      "additional_rrsets": [
+        { "section": "additional", "name": "ns1.example.com.", "type": "A", "ttl": 172800, "data": ["93.184.216.34"] }
+      ],
+      "next_targets": [
+        { "server_name": "ns1.example.com.", "server_ip": "93.184.216.34", "zone_context": "example.com.", "reason": "Glue from TLD referral." }
+      ],
+      "explanation": "The .com nameserver delegated example.com to its authoritative server.",
+      "technical_note": "Glue allowed the next authoritative hop without a support lookup."
+    },
+    {
+      "index": 2,
+      "parent_index": null,
+      "role": "final",
+      "hop_purpose": "terminal",
+      "zone_context": "example.com.",
+      "server_name": "ns1.example.com.",
+      "server_ip": "93.184.216.34",
+      "qname": "example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 20,
+      "response_code": "NOERROR",
+      "authoritative": true,
+      "truncated": false,
+      "response_kind": "answer",
+      "answer_rrsets": [
+        { "section": "answer", "name": "example.com.", "type": "A", "ttl": 300, "data": ["93.184.216.34"] }
+      ],
+      "authority_rrsets": [],
+      "additional_rrsets": [],
+      "next_targets": [],
+      "explanation": "The authoritative server returned the final A record.",
+      "technical_note": "Authoritative answer matched the requested name and type."
+    }
+  ],
+  "summary": {
+    "headline": "Authoritative answer returned.",
+    "detail": "The trace followed root and TLD referrals to the example.com authoritative server.",
+    "total_hops": 3,
+    "answer_count": 1,
+    "cname_count": 0
+  },
+  "truth_notes": [
+    { "code": "backend_trace_service", "message": "Trace performed by the backend trace service." },
+    { "code": "not_user_resolver_path", "message": "Timings reflect the backend service path, not the user's resolver path." },
+    { "code": "live_results_vary", "message": "Live DNS data can change between runs." }
+  ]
+}

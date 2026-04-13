@@ -1,0 +1,293 @@
+openapi: 3.1.0
+info:
+  title: DNSWatcher API
+  version: 1.0.0
+  description: Truth-first iterative DNS tracing API.
+servers:
+  - url: /
+paths:
+  /api/v1/traces:
+    post:
+      operationId: createTrace
+      summary: Run an iterative DNS trace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraceRequest'
+      responses:
+        '200':
+          description: Trace completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceResult'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported media type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /healthz:
+    get:
+      operationId: healthz
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+components:
+  schemas:
+    TraceRequest:
+      type: object
+      additionalProperties: false
+      required: [domain, qtype]
+      properties:
+        domain:
+          type: string
+        qtype:
+          type: string
+          enum: [A, AAAA, NS]
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+    TraceResult:
+      type: object
+      additionalProperties: false
+      required:
+        - trace_id
+        - input_domain
+        - normalized_domain
+        - qtype
+        - started_at
+        - completed_at
+        - total_duration_ms
+        - status
+        - final_outcome
+        - hops
+        - summary
+        - truth_notes
+      properties:
+        trace_id:
+          type: string
+        input_domain:
+          type: string
+        normalized_domain:
+          type: string
+        qtype:
+          type: string
+          enum: [A, AAAA, NS]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        total_duration_ms:
+          type: integer
+        status:
+          type: string
+          enum: [success, failure]
+        final_outcome:
+          $ref: '#/components/schemas/FinalOutcome'
+        hops:
+          type: array
+          items:
+            $ref: '#/components/schemas/Hop'
+        summary:
+          $ref: '#/components/schemas/TraceSummary'
+        truth_notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TruthNote'
+    TraceSummary:
+      type: object
+      additionalProperties: false
+      required: [headline, detail, total_hops, answer_count, cname_count]
+      properties:
+        headline:
+          type: string
+        detail:
+          type: string
+        total_hops:
+          type: integer
+        answer_count:
+          type: integer
+        cname_count:
+          type: integer
+    FinalOutcome:
+      type: object
+      additionalProperties: false
+      required: [kind, rcode, message, terminal_hop_index]
+      properties:
+        kind:
+          type: string
+          enum:
+            - success
+            - nxdomain
+            - servfail
+            - timeout
+            - refused
+            - not_implemented
+            - max_depth
+            - unusable_referral
+            - loop_detected
+        rcode:
+          type: string
+        message:
+          type: string
+        terminal_hop_index:
+          type: integer
+    TruthNote:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    Hop:
+      type: object
+      additionalProperties: false
+      required:
+        - index
+        - role
+        - hop_purpose
+        - zone_context
+        - server_name
+        - server_ip
+        - qname
+        - qtype
+        - transport
+        - latency_ms
+        - response_code
+        - authoritative
+        - truncated
+        - response_kind
+        - answer_rrsets
+        - authority_rrsets
+        - additional_rrsets
+        - next_targets
+        - explanation
+        - technical_note
+      properties:
+        index:
+          type: integer
+        parent_index:
+          type: integer
+          nullable: true
+        role:
+          type: string
+          enum: [root, tld, authoritative, alias, final, error]
+        hop_purpose:
+          type: string
+          enum: [delegation, nameserver_address_lookup, cname_follow, terminal]
+        zone_context:
+          type: string
+        server_name:
+          type: string
+        server_ip:
+          type: string
+        qname:
+          type: string
+        qtype:
+          type: string
+        transport:
+          type: string
+          enum: [udp, tcp]
+        latency_ms:
+          type: integer
+        response_code:
+          type: string
+        authoritative:
+          type: boolean
+        truncated:
+          type: boolean
+        response_kind:
+          type: string
+          enum: [referral, answer, cname, nodata, error]
+        answer_rrsets:
+          type: array
+          items:
+            $ref: '#/components/schemas/RRSet'
+        authority_rrsets:
+          type: array
+          items:
+            $ref: '#/components/schemas/RRSet'
+        additional_rrsets:
+          type: array
+          items:
+            $ref: '#/components/schemas/RRSet'
+        next_targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/NextTarget'
+        explanation:
+          type: string
+        technical_note:
+          type: string
+    NextTarget:
+      type: object
+      additionalProperties: false
+      required: [server_name, server_ip, zone_context, reason]
+      properties:
+        server_name:
+          type: string
+        server_ip:
+          type: string
+        zone_context:
+          type: string
+        reason:
+          type: string
+    RRSet:
+      type: object
+      additionalProperties: false
+      required: [section, name, type, ttl, data]
+      properties:
+        section:
+          type: string
+          enum: [answer, authority, additional]
+        name:
+          type: string
+        type:
+          type: string
+        ttl:
+          type: integer
+        data:
+          type: array
+          items:
+            type: string

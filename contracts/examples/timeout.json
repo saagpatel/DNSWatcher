@@ -1,0 +1,81 @@
+{
+  "trace_id": "trace_timeout",
+  "input_domain": "slow.example.com",
+  "normalized_domain": "slow.example.com",
+  "qtype": "A",
+  "started_at": "2026-04-13T00:00:00Z",
+  "completed_at": "2026-04-13T00:00:04Z",
+  "total_duration_ms": 4000,
+  "status": "failure",
+  "final_outcome": {
+    "kind": "timeout",
+    "rcode": "TIMEOUT",
+    "message": "All candidate upstream servers timed out before the trace could continue.",
+    "terminal_hop_index": 1
+  },
+  "hops": [
+    {
+      "index": 0,
+      "parent_index": null,
+      "role": "root",
+      "hop_purpose": "delegation",
+      "zone_context": ".",
+      "server_name": "a.root-servers.net.",
+      "server_ip": "198.41.0.4",
+      "qname": "slow.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 12,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "referral",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "com.", "type": "NS", "ttl": 172800, "data": ["a.gtld-servers.net."] }
+      ],
+      "additional_rrsets": [
+        { "section": "additional", "name": "a.gtld-servers.net.", "type": "A", "ttl": 172800, "data": ["192.5.6.30"] }
+      ],
+      "next_targets": [
+        { "server_name": "a.gtld-servers.net.", "server_ip": "192.5.6.30", "zone_context": "com.", "reason": "Glue from root referral." }
+      ],
+      "explanation": "The root server referred the trace toward .com.",
+      "technical_note": "The authority section contained .com NS records with glue."
+    },
+    {
+      "index": 1,
+      "parent_index": null,
+      "role": "error",
+      "hop_purpose": "delegation",
+      "zone_context": "com.",
+      "server_name": "a.gtld-servers.net.",
+      "server_ip": "192.5.6.30",
+      "qname": "slow.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 0,
+      "response_code": "TIMEOUT",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "error",
+      "answer_rrsets": [],
+      "authority_rrsets": [],
+      "additional_rrsets": [],
+      "next_targets": [],
+      "explanation": "The queried server did not respond before the timeout.",
+      "technical_note": "The backend exhausted the per-hop wait budget for this server."
+    }
+  ],
+  "summary": {
+    "headline": "Upstream servers timed out.",
+    "detail": "The backend did not receive a response before its timeout budget was exhausted.",
+    "total_hops": 2,
+    "answer_count": 0,
+    "cname_count": 0
+  },
+  "truth_notes": [
+    { "code": "backend_trace_service", "message": "Traces are performed by the backend trace service." },
+    { "code": "not_user_resolver_path", "message": "Timings reflect the backend service path, not the user's resolver path." }
+  ]
+}

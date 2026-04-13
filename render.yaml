@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: dnswatcher
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /healthz
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: commit
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DNSWATCHER_STATIC_DIR
+        value: /app/frontend/dist
+      - key: DNSWATCHER_RATE_LIMIT_PER_MINUTE
+        value: "20"
+      - key: DNSWATCHER_RATE_LIMIT_BURST
+        value: "5"
+      - key: DNSWATCHER_MAX_CONCURRENT_TRACES
+        value: "8"
+      - key: DNSWATCHER_READ_HEADER_TIMEOUT
+        value: 5s
+      - key: DNSWATCHER_READ_TIMEOUT
+        value: 10s
+      - key: DNSWATCHER_WRITE_TIMEOUT
+        value: 30s
+      - key: DNSWATCHER_IDLE_TIMEOUT
+        value: 60s

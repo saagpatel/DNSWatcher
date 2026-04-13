@@ -1,0 +1,112 @@
+{
+  "trace_id": "trace_nxdomain",
+  "input_domain": "nonexistent-subdomain.example.com",
+  "normalized_domain": "nonexistent-subdomain.example.com",
+  "qtype": "A",
+  "started_at": "2026-04-13T00:00:00Z",
+  "completed_at": "2026-04-13T00:00:01Z",
+  "total_duration_ms": 121,
+  "status": "failure",
+  "final_outcome": {
+    "kind": "nxdomain",
+    "rcode": "NXDOMAIN",
+    "message": "The authoritative server reported that the queried name does not exist.",
+    "terminal_hop_index": 2
+  },
+  "hops": [
+    {
+      "index": 0,
+      "parent_index": null,
+      "role": "root",
+      "hop_purpose": "delegation",
+      "zone_context": ".",
+      "server_name": "a.root-servers.net.",
+      "server_ip": "198.41.0.4",
+      "qname": "nonexistent-subdomain.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 12,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "referral",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "com.", "type": "NS", "ttl": 172800, "data": ["a.gtld-servers.net."] }
+      ],
+      "additional_rrsets": [
+        { "section": "additional", "name": "a.gtld-servers.net.", "type": "A", "ttl": 172800, "data": ["192.5.6.30"] }
+      ],
+      "next_targets": [
+        { "server_name": "a.gtld-servers.net.", "server_ip": "192.5.6.30", "zone_context": "com.", "reason": "Glue from root referral." }
+      ],
+      "explanation": "The root server referred the trace toward .com.",
+      "technical_note": "The authority section contained .com NS records with glue."
+    },
+    {
+      "index": 1,
+      "parent_index": null,
+      "role": "tld",
+      "hop_purpose": "delegation",
+      "zone_context": "com.",
+      "server_name": "a.gtld-servers.net.",
+      "server_ip": "192.5.6.30",
+      "qname": "nonexistent-subdomain.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 18,
+      "response_code": "NOERROR",
+      "authoritative": false,
+      "truncated": false,
+      "response_kind": "referral",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "example.com.", "type": "NS", "ttl": 172800, "data": ["ns1.example.com."] }
+      ],
+      "additional_rrsets": [
+        { "section": "additional", "name": "ns1.example.com.", "type": "A", "ttl": 172800, "data": ["93.184.216.34"] }
+      ],
+      "next_targets": [
+        { "server_name": "ns1.example.com.", "server_ip": "93.184.216.34", "zone_context": "example.com.", "reason": "Glue from TLD referral." }
+      ],
+      "explanation": "The .com nameserver referred the trace to example.com's authoritative server.",
+      "technical_note": "Glue allowed the authoritative hop."
+    },
+    {
+      "index": 2,
+      "parent_index": null,
+      "role": "final",
+      "hop_purpose": "terminal",
+      "zone_context": "example.com.",
+      "server_name": "ns1.example.com.",
+      "server_ip": "93.184.216.34",
+      "qname": "nonexistent-subdomain.example.com.",
+      "qtype": "A",
+      "transport": "udp",
+      "latency_ms": 22,
+      "response_code": "NXDOMAIN",
+      "authoritative": true,
+      "truncated": false,
+      "response_kind": "error",
+      "answer_rrsets": [],
+      "authority_rrsets": [
+        { "section": "authority", "name": "example.com.", "type": "SOA", "ttl": 300, "data": ["ns1.example.com. hostmaster.example.com. 1 3600 600 86400 300"] }
+      ],
+      "additional_rrsets": [],
+      "next_targets": [],
+      "explanation": "The authoritative server reported that the queried name does not exist.",
+      "technical_note": "NXDOMAIN is authoritative and terminal for this name."
+    }
+  ],
+  "summary": {
+    "headline": "Authoritative NXDOMAIN.",
+    "detail": "The trace reached the authoritative server, which reported that the name does not exist.",
+    "total_hops": 3,
+    "answer_count": 0,
+    "cname_count": 0
+  },
+  "truth_notes": [
+    { "code": "backend_trace_service", "message": "Traces are performed by the backend trace service." },
+    { "code": "not_user_resolver_path", "message": "Timings reflect the backend service path, not the user's resolver path." }
+  ]
+}
