@@ -27,6 +27,12 @@ DNSWatcher is a truth-first DNS trace viewer. It runs a real backend iterative t
 
 During local development, the Vite frontend proxies `/api` to the Go backend.
 
+## Frontend test note
+
+- Frontend tests run under Vitest + jsdom.
+- Shared browser test shims live in `frontend/src/test/setup.ts`.
+- Storage tests rely on the shared in-memory `localStorage` mock from that setup file rather than a real browser runtime.
+
 ## Runtime posture
 
 - Preferred runtime class: single-region container or VM
