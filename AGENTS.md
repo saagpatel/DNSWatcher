@@ -35,3 +35,32 @@
 - Prefer deterministic local DNS lab tests over live-network tests.
 - Do not rely on public internet DNS behavior in CI.
 - Keep docs, examples, generated types, and runtime output in sync.
+
+<!-- portfolio-context:start -->
+# Portfolio Context
+
+## What This Project Is
+
+DNSWatcher is an active local project in the /Users/d/Projects portfolio.
+
+## Current State
+
+Portfolio truth currently marks this project as `active` with `boilerplate` context. Phase 104 recovered minimum-viable context so future sessions can resume without rediscovery.
+
+## Stack
+
+- Stack still needs a deeper explicit handoff beyond this minimum context.
+
+## How To Run
+
+- Review the README and top-level scripts before the next session; this repo does not yet expose one canonical run command inside the new context block.
+
+## Known Risks
+
+- This repo only has minimum-viable recovery context today; deeper handoff details may still live in the README and supporting docs.
+
+## Next Recommended Move
+
+Use this context plus the README and supporting docs to resume the next active task, then promote the repo beyond minimum-viable by capturing a dedicated handoff, roadmap, or discovery artifact.
+
+<!-- portfolio-context:end -->
