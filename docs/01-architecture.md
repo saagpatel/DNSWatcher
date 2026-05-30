@@ -16,8 +16,7 @@
 ## Backend modules
 
 - `internal/contracts`: API structs shared across handlers and tests
-- `internal/trace`: iterative trace engine and normalization
-- `internal/classify`: response classification helpers
+- `internal/trace`: iterative trace engine, normalization, and response classification
 - `internal/policy`: input validation and destination filtering
 - `internal/httpapi`: HTTP handlers, response writing, and server configuration
 - `internal/testkit`: deterministic DNS lab for local integration tests

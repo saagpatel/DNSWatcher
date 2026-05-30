@@ -57,9 +57,10 @@ browser-only DoH viewer with animation.**" The operator's
 truth-first framing extends to runtime posture: conservative
 timeouts, explicit rate limiting, public-IP-only DNS egress.
 Support lookups for nameserver addresses appear as expandable
-substeps in the UI. QNAME minimization is implemented. Architecture
-is **stateless HTTP backend (Go) + static frontend (React)** —
-ideal for single-region container or VM deployment.
+substeps in the UI. QNAME minimization is **deferred in V1** (full
+query name sent during iterative tracing; documented explicitly).
+Architecture is **stateless HTTP backend (Go) + static frontend
+(React)** — ideal for single-region container or VM deployment.
 
 The operator has shipped three deploy-target configs on canonical
 main (`Dockerfile`, `fly.toml`, `render.yaml`) plus a runtime
@@ -190,7 +191,7 @@ private alpha rollout.
 | Audience | **Public users** (truth-first DNS education) |
 | Deploy targets shipped | Dockerfile + fly.toml + render.yaml (+ local stash: `scripts/koyeb-deploy.sh`) |
 | Recommended alpha host | Render Free Web Service in `oregon` |
-| Distinguishing tech | **Real backend iterative trace from root** + **QNAME minimization** + **OpenAPI-typed front/back boundary** + **truth-first product positioning** + multi-deploy-target manifests |
+| Distinguishing tech | **Real backend iterative trace from root** + **QNAME minimization deferred in V1 (documented)** + **OpenAPI-typed front/back boundary** + **truth-first product positioning** + multi-deploy-target manifests |
 | Production-ready gate | `docs/08-runtime-verification.md` (operator-written checklist) |
 | Migration state | No `legacy-origin` remote |
 | Distinguishing feature | **Third self-hosted service cluster member; first public-facing-container-deployed sub-shape.** Self-hosted service cluster reaches 3 with 3 sub-shapes. Second single-commit canonical history in portfolio. |
