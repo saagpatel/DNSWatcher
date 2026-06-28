@@ -166,6 +166,113 @@ func TestTraceHandlesReferralCNAMEAndNODATA(t *testing.T) {
 	}
 }
 
+func TestTraceUsesAvailableGlueBeforeSupportLookupsDuringCNAMEFollow(t *testing.T) {
+	root := testkit.StartServer(t, testkit.ServerSpec{
+		Name:   "root.local.",
+		FakeIP: "203.0.113.10",
+		Zone:   ".",
+		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
+			msg := new(dns.Msg)
+			msg.SetReply(r)
+			switch r.Question[0].Name {
+			case "www.example.com.", "example.com.":
+				msg.Ns = []dns.RR{
+					mustRR(t, "com. 300 IN NS ns.com.local."),
+				}
+				msg.Extra = []dns.RR{
+					mustRR(t, "ns.com.local. 300 IN A 203.0.113.20"),
+				}
+			default:
+				msg.Rcode = dns.RcodeNameError
+			}
+			_ = w.WriteMsg(msg)
+		}),
+	})
+	defer root.Shutdown()
+
+	tld := testkit.StartServer(t, testkit.ServerSpec{
+		Name:   "ns.com.local.",
+		FakeIP: "203.0.113.20",
+		Zone:   "com.",
+		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
+			msg := new(dns.Msg)
+			msg.SetReply(r)
+			msg.Ns = []dns.RR{
+				mustRR(t, "example.com. 300 IN NS ns1.example.com."),
+				mustRR(t, "example.com. 300 IN NS ns-missing-1.other."),
+				mustRR(t, "example.com. 300 IN NS ns-missing-2.other."),
+				mustRR(t, "example.com. 300 IN NS ns-missing-3.other."),
+			}
+			msg.Extra = []dns.RR{
+				mustRR(t, "ns1.example.com. 300 IN A 203.0.113.30"),
+			}
+			_ = w.WriteMsg(msg)
+		}),
+	})
+	defer tld.Shutdown()
+
+	auth := testkit.StartServer(t, testkit.ServerSpec{
+		Name:   "ns1.example.com.",
+		FakeIP: "203.0.113.30",
+		Zone:   "example.com.",
+		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
+			msg := new(dns.Msg)
+			msg.SetReply(r)
+			msg.Authoritative = true
+			switch r.Question[0].Name {
+			case "www.example.com.":
+				msg.Answer = []dns.RR{mustRR(t, "www.example.com. 60 IN CNAME example.com.")}
+			case "example.com.":
+				msg.Answer = []dns.RR{mustRR(t, "example.com. 300 IN A 93.184.216.34")}
+			default:
+				msg.Rcode = dns.RcodeNameError
+			}
+			_ = w.WriteMsg(msg)
+		}),
+	})
+	defer auth.Shutdown()
+
+	endpoints := map[string]string{
+		root.FakeIP: root.Endpoint,
+		tld.FakeIP:  tld.Endpoint,
+		auth.FakeIP: auth.Endpoint,
+	}
+
+	engine := trace.NewEngine(trace.Config{
+		PerHopTimeout:      200 * time.Millisecond,
+		OverallTimeout:     2 * time.Second,
+		MaxDepth:           10,
+		MaxUpstreamQueries: 6,
+		Roots: []trace.ServerCandidate{
+			trace.NewServerCandidate(root.Name, root.FakeIP, root.Zone, root.Endpoint),
+		},
+		DestinationPolicy: policy.AllowAllPolicy{},
+		EndpointResolver: func(ip string) string {
+			if endpoint, ok := endpoints[ip]; ok {
+				return endpoint
+			}
+			return net.JoinHostPort(ip, "53")
+		},
+	})
+
+	result, err := engine.Trace(context.Background(), contracts.TraceRequest{Domain: "www.example.com", QType: "A"})
+	if err != nil {
+		t.Fatalf("trace cname with mixed referral glue: %v", err)
+	}
+	if result.FinalOutcome.Kind != "success" {
+		t.Fatalf("expected success before support lookup budget exhaustion, got %+v", result.FinalOutcome)
+	}
+	if result.Summary.CNAMECount != 1 {
+		t.Fatalf("expected one CNAME hop, got summary %+v and hops %+v", result.Summary, result.Hops)
+	}
+	for _, hop := range result.Hops {
+		if hop.HopPurpose == "nameserver_address_lookup" {
+			t.Fatalf("expected available glue to avoid eager support lookup, got %+v", result.Hops)
+		}
+	}
+	assertTraceJSONUsesArrays(t, result)
+}
+
 func TestTraceHandlesSupportLookupAndTCPFallback(t *testing.T) {
 	root := testkit.StartServer(t, testkit.ServerSpec{
 		Name:   "root.local.",

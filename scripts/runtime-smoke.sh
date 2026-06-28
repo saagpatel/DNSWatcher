@@ -44,8 +44,20 @@ def assert_trace(domain, qtype, expected_outcome):
         )
     if not body["truth_notes"]:
         raise SystemExit(f"{domain} {qtype} returned no truth notes")
+    assert_normalized_trace_shape(domain, qtype, body)
     print(f"ok: {domain} {qtype} -> {outcome} ({len(body['hops'])} hops)")
     return body
+
+
+def assert_normalized_trace_shape(domain, qtype, body):
+    for hop in body.get("hops", []):
+        if hop.get("hop_purpose") == "terminal":
+            raise SystemExit(f"{domain} {qtype} returned unsupported hop_purpose terminal")
+        for field in ("answer_rrsets", "authority_rrsets", "additional_rrsets", "next_targets"):
+            if not isinstance(hop.get(field), list):
+                raise SystemExit(
+                    f"{domain} {qtype} hop {hop.get('index')} field {field} was not an array: {hop.get(field)!r}"
+                )
 
 
 health = request("GET", "/healthz", expected_status=200)
