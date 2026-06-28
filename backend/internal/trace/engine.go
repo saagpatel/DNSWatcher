@@ -18,20 +18,20 @@ import (
 )
 
 var (
-	errTimeout         = errors.New("timeout")
-	errLoopDetected    = errors.New("loop detected")
-	errMaxDepth        = errors.New("max depth exceeded")
+	errTimeout          = errors.New("timeout")
+	errLoopDetected     = errors.New("loop detected")
+	errMaxDepth         = errors.New("max depth exceeded")
 	errUnusableReferral = errors.New("unusable referral")
 )
 
 type Config struct {
-	PerHopTimeout     time.Duration
-	OverallTimeout    time.Duration
-	MaxDepth          int
+	PerHopTimeout      time.Duration
+	OverallTimeout     time.Duration
+	MaxDepth           int
 	MaxUpstreamQueries int
-	Roots             []ServerCandidate
-	DestinationPolicy policy.DestinationPolicy
-	EndpointResolver  func(ip string) string
+	Roots              []ServerCandidate
+	DestinationPolicy  policy.DestinationPolicy
+	EndpointResolver   func(ip string) string
 }
 
 type ServerCandidate struct {
@@ -99,12 +99,12 @@ func (e *Engine) Trace(ctx context.Context, req contracts.TraceRequest) (contrac
 	}
 
 	state := &traceState{
-		traceID:         newTraceID(),
-		inputDomain:     req.Domain,
+		traceID:          newTraceID(),
+		inputDomain:      req.Domain,
 		normalizedDomain: normalizedDomain,
-		qtype:           qtype,
-		startedAt:       startedAt,
-		visited:         map[string]struct{}{},
+		qtype:            qtype,
+		startedAt:        startedAt,
+		visited:          map[string]struct{}{},
 	}
 
 	outcome := e.traceName(ctx, state, fqdn(normalizedDomain), qtype, e.cfg.Roots, nil, "delegation", ".")
@@ -147,15 +147,15 @@ func (e *Engine) Trace(ctx context.Context, req contracts.TraceRequest) (contrac
 }
 
 type traceState struct {
-	traceID         string
-	inputDomain     string
+	traceID          string
+	inputDomain      string
 	normalizedDomain string
-	qtype           string
-	startedAt       time.Time
-	result          contracts.TraceResult
-	hops            []contracts.Hop
-	visited         map[string]struct{}
-	upstreamQueries int
+	qtype            string
+	startedAt        time.Time
+	result           contracts.TraceResult
+	hops             []contracts.Hop
+	visited          map[string]struct{}
+	upstreamQueries  int
 }
 
 func (e *Engine) traceName(ctx context.Context, state *traceState, qname, qtype string, candidates []ServerCandidate, parent *int, purpose, zone string) contracts.FinalOutcome {
@@ -170,6 +170,7 @@ func (e *Engine) traceName(ctx context.Context, state *traceState, qname, qtype 
 			return contracts.FinalOutcome{Kind: "max_depth", RCode: "BUDGET", Message: "The trace exceeded its upstream query budget.", TerminalHopIndex: lastHopIndex(state.hops)}
 		}
 		hop, response, nextCandidates, cnameTarget, err := e.queryCandidates(ctx, state, currentCandidates, currentQName, currentQType, currentPurpose, currentZone, parent)
+		hop = normalizeHop(hop)
 		state.hops = append(state.hops, hop)
 		hopIndex := hop.Index
 		switch {
@@ -568,13 +569,29 @@ func newErrorHop(index int, parent *int, candidate ServerCandidate, qname, qtype
 		Authoritative:    false,
 		Truncated:        false,
 		ResponseKind:     responseKind,
-		AnswerRRSets:     nil,
-		AuthorityRRSets:  nil,
-		AdditionalRRSets: nil,
-		NextTargets:      nil,
+		AnswerRRSets:     []contracts.RRSet{},
+		AuthorityRRSets:  []contracts.RRSet{},
+		AdditionalRRSets: []contracts.RRSet{},
+		NextTargets:      []contracts.NextTarget{},
 		Explanation:      explanation,
 		TechnicalNote:    technicalNote,
 	}
+}
+
+func normalizeHop(hop contracts.Hop) contracts.Hop {
+	if hop.AnswerRRSets == nil {
+		hop.AnswerRRSets = []contracts.RRSet{}
+	}
+	if hop.AuthorityRRSets == nil {
+		hop.AuthorityRRSets = []contracts.RRSet{}
+	}
+	if hop.AdditionalRRSets == nil {
+		hop.AdditionalRRSets = []contracts.RRSet{}
+	}
+	if hop.NextTargets == nil {
+		hop.NextTargets = []contracts.NextTarget{}
+	}
+	return hop
 }
 
 func summaryDetail(kind, domain, qtype string) string {

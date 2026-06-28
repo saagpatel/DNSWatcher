@@ -215,7 +215,7 @@ components:
           enum: [root, tld, authoritative, alias, final, error]
         hop_purpose:
           type: string
-          enum: [delegation, nameserver_address_lookup, cname_follow, terminal]
+          enum: [delegation, nameserver_address_lookup, cname_follow]
         zone_context:
           type: string
         server_name:

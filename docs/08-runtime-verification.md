@@ -10,6 +10,9 @@ If the live checks fail immediately with `refused` or `timeout` on the first pub
 - Serve the built frontend same-origin if possible.
 - Keep default public-IP-only destination filtering enabled.
 - Use production-like timeout and concurrency settings.
+- Confirm the host permits outbound UDP and TCP traffic to public DNS
+  nameserver IPs on destination port 53. A normal platform resolver is not
+  enough; DNSWatcher performs its own iterative DNS exchanges.
 
 ## Required checks
 
@@ -21,6 +24,8 @@ If the live checks fail immediately with `refused` or `timeout` on the first pub
 6. Run an invalid-input request and confirm the API returns `400` with `invalid_domain_input`.
 7. Confirm the trace screen still shows the truth note in production.
 8. Confirm the JSON export contains the raw normalized `TraceResult` object.
+9. Confirm `hop_purpose` values are only `delegation`, `nameserver_address_lookup`, or `cname_follow`.
+10. Confirm source cards link only to official references.
 
 ## DNS transport checks
 
@@ -28,6 +33,18 @@ If the live checks fail immediately with `refused` or `timeout` on the first pub
 2. Confirm TCP fallback works when a truncated UDP response is encountered.
 3. Confirm the runtime can reach public nameserver IPs from the backend region.
 4. Confirm blocked private or special-use destination IPs still terminate as `unusable_referral`.
+5. If `BASE_URL=http://127.0.0.1:8080 make runtime-smoke` fails locally with an
+   immediate `refused` or `timeout`, record it as local runtime-path evidence
+   and continue with a deployed host proof. Do not use local public DNS failure
+   as CI evidence against the deterministic DNS lab tests.
+
+## Frontend accessibility and performance checks
+
+1. Keyboard through the domain input, qtype selector, run button, presets, recent traces, timeline hops, support hops, mode toggle, export button, and source links.
+2. Confirm timeline states include visible text labels and are not color-only.
+3. Confirm a screen reader can reach the trace status, timeline buttons, support details, and truth notes.
+4. Confirm `prefers-reduced-motion` disables non-essential hover/transition motion.
+5. Treat Core Web Vitals as release design targets: LCP under 2.5s, INP under 200ms, CLS under 0.1. Measure them on the chosen host before public launch.
 
 ## Logging checks
 
@@ -44,3 +61,17 @@ If the live checks fail immediately with `refused` or `timeout` on the first pub
 ## Release gate
 
 DNSWatcher is only runtime-ready when all checks above pass on the chosen host without changing the product truth note or relaxing the public-IP-only DNS egress policy.
+
+## Public-readiness evidence packet
+
+Before public launch, capture:
+
+- The exact candidate host, region, and URL.
+- `make test` and `make build` results from the release commit.
+- `BASE_URL=<candidate> make runtime-smoke` output.
+- Browser evidence for query screen, trace screen, truth notes, official source
+  links, beginner mode, advanced mode, and raw JSON export.
+- One successful `A`, `AAAA`, `NS`, and CNAME trace JSON sample with no
+  `hop_purpose: terminal` values and no `null` RRset/next-target arrays.
+- One invalid-input `400` response.
+- Logging and rate-limit evidence.

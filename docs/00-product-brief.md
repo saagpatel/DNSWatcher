@@ -3,12 +3,13 @@
 ## Hero
 
 - Product: DNSWatcher
-- Hero line: DNS at a glance
-- Subhead: Run a real iterative DNS trace and follow referrals from root to answer.
+- Flagship: DNS: Follow the Question
+- Hero line: DNS: Follow the Question
+- Subhead: Ask for a DNS record, then follow the real backend iterative path from root hints through referrals, glue, support lookups, aliases, answers, and failures.
 
 ## Product thesis
 
-DNSWatcher makes DNS resolution understandable by showing a real backend iterative trace from delegation to answer, not by pretending to reproduce the user's resolver path.
+DNSWatcher makes DNS resolution understandable by turning a real backend iterative trace into an "I finally understand this" journey. The product explains the mechanics of delegation, glue, nameserver-address support lookups, CNAME restarts, TCP fallback, and terminal DNS outcomes without pretending to reproduce the user's resolver path.
 
 ## Target users
 
@@ -23,10 +24,12 @@ DNSWatcher makes DNS resolution understandable by showing a real backend iterati
 - Support lookups for nameserver addresses when glue is missing
 - Visible CNAME continuation
 - Distinct terminal outcomes
+- Visual states for referral, glue, support lookup, CNAME restart, TCP fallback, NODATA, NXDOMAIN, timeout, refused, unusable referral, and max-depth
 - Vertical timeline with expandable support substeps
 - Beginner and advanced detail modes
 - JSON export of the normalized trace result
 - Recent trace metadata in browser storage only
+- Concise official source cards
 
 ## Explicit non-goals
 
@@ -39,3 +42,10 @@ DNSWatcher makes DNS resolution understandable by showing a real backend iterati
 ## Truth note
 
 Traces are performed by the backend trace service. Timings reflect that service's network path, not your device's resolver path.
+
+## Source requirements
+
+- DNS behavior must be grounded in official DNS sources: RFC 1034, RFC 1035, RFC 9210, and IANA root hints/root server data.
+- Accessibility behavior must be grounded in WCAG and MDN platform documentation.
+- Performance targets should use Core Web Vitals design goals: LCP under 2.5s, INP under 200ms, CLS under 0.1.
+- UI copy must not overstate what the backend observed. It can explain the trace, but the raw `TraceResult` remains authoritative.

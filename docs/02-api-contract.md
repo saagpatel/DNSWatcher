@@ -36,7 +36,12 @@
 - `transport`: `udp` or `tcp`
 - `authoritative`: whether the responder set the authoritative answer flag
 - `truncated`: whether the response required TCP fallback
-- `hop_purpose`: `delegation`, `nameserver_address_lookup`, `cname_follow`, or `terminal`
+- `hop_purpose`: `delegation`, `nameserver_address_lookup`, or `cname_follow`.
+  Terminal state is represented by `final_outcome.terminal_hop_index` and the
+  terminal hop's `response_kind`/`response_code`, not by a separate hop
+  purpose. This keeps the contract aligned with the backend runtime: a final
+  answer, NODATA, NXDOMAIN, timeout, refused response, or unusable referral is
+  still part of the delegation/CNAME/support path that produced it.
 
 ## Status code rules
 
