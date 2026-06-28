@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"dnswatcher/backend/internal/contracts"
@@ -21,6 +22,25 @@ type stubTracer struct {
 
 func (s stubTracer) Trace(context.Context, contracts.TraceRequest) (contracts.TraceResult, error) {
 	return s.result, s.err
+}
+
+type blockingTracer struct {
+	result  contracts.TraceResult
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *blockingTracer) Trace(ctx context.Context, _ contracts.TraceRequest) (contracts.TraceResult, error) {
+	s.once.Do(func() {
+		close(s.started)
+	})
+	select {
+	case <-s.release:
+		return s.result, nil
+	case <-ctx.Done():
+		return contracts.TraceResult{}, ctx.Err()
+	}
 }
 
 func TestCreateTraceRejectsInvalidMethodAndContentType(t *testing.T) {
@@ -120,5 +140,42 @@ func TestCreateTraceUsesForwardedClientIPForRateLimiting(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 when forwarded client repeats, got %d", rec.Code)
+	}
+}
+
+func TestCreateTraceConcurrencyLimit(t *testing.T) {
+	tracer := &blockingTracer{
+		result:  contracts.TraceResult{QType: "A", FinalOutcome: contracts.FinalOutcome{Kind: "success"}, Hops: []contracts.Hop{{Index: 0}}, TotalDurationMS: 12},
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	server := httpapi.NewServer(tracer, httpapi.Config{RateLimitPerMinute: 60, Burst: 60, MaxConcurrentTraces: 1})
+	handler := server.Handler()
+
+	firstDone := make(chan int, 1)
+	go func() {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/traces", strings.NewReader(`{"domain":"example.com","qtype":"A"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		firstDone <- rec.Code
+	}()
+
+	<-tracer.started
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/traces", strings.NewReader(`{"domain":"example.com","qtype":"A"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 while one trace is in flight, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "concurrency_limited") {
+		t.Fatalf("expected concurrency_limited response, got %s", rec.Body.String())
+	}
+
+	close(tracer.release)
+	if code := <-firstDone; code != http.StatusOK {
+		t.Fatalf("expected first request to finish 200, got %d", code)
 	}
 }

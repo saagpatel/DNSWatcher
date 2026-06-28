@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: install frontend-install backend-test frontend-test generate test build docker-build runtime-smoke render-blueprint-validate
+.PHONY: install frontend-install backend-test frontend-test generate test build docker-build runtime-smoke private-alpha-check render-blueprint-validate
 
 install: frontend-install
 	cd backend && go mod tidy
@@ -28,6 +28,9 @@ docker-build:
 
 runtime-smoke:
 	./scripts/runtime-smoke.sh
+
+private-alpha-check:
+	./scripts/private-alpha-check.sh
 
 render-blueprint-validate:
 	render blueprints validate render.yaml

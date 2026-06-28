@@ -55,6 +55,7 @@ candidate URL:
 ```sh
 curl -fsS "$BASE_URL/healthz"
 BASE_URL="$BASE_URL" make runtime-smoke
+BASE_URL="$BASE_URL" make private-alpha-check
 curl -fsS -X POST "$BASE_URL/api/v1/traces" \
   -H 'Content-Type: application/json' \
   -d '{"domain":"example.com","qtype":"A"}'
@@ -87,7 +88,8 @@ Evidence to capture:
 4. Use the default `onrender.com` hostname first.
 5. Wait for `/healthz` to pass.
 6. Run `BASE_URL=https://<your-service>.onrender.com make runtime-smoke`
-7. Complete the full checklist in `docs/08-runtime-verification.md`
+7. Run `BASE_URL=https://<your-service>.onrender.com make private-alpha-check`
+8. Complete the full checklist in `docs/08-runtime-verification.md`
 
 ## Free-tier caveats
 
