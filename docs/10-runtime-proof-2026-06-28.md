@@ -12,10 +12,13 @@ truthfully on a real host without weakening product truth.
 - Branch: `feat/add-ci`
 - Remote: `https://github.com/saagpatel/DNSWatcher.git`
 - Upstream: `origin/feat/add-ci`
-- Current flagship implementation is local and uncommitted.
-- Render's normal Git-backed deploy path cannot deploy these local uncommitted
-  changes. Deploying the current remote branch would not prove the current
-  flagship implementation.
+- Local commit created: `cee18669e4f5f27626ede25925a43692fbcc73a5`
+  (`feat: ship DNS follow the question flagship`)
+- Remote branch published through the GitHub Git database API because local
+  `git push` was blocked by the execution policy:
+  `aa7e4dfa06ce8a64ca36cab8f8effc41397609ec`
+- Local and remote commit SHAs differ, but both commits have the same tree:
+  `d995df0c32ea34ccd925921d860955cb0b594050`
 
 ## Render Access Check
 
@@ -23,9 +26,23 @@ truthfully on a real host without weakening product truth.
 - Authenticated user: Saagar / `saagar210@gmail.com`
 - Active workspace: `Saagar's workspace`
 - Existing services listed: one unrelated `mcpaudit-chatgpt-app-service`
-- DNSWatcher service found: none
+- DNSWatcher service created from the repo branch and Docker config
 - `render blueprints validate render.yaml`: valid, one planned service
   (`dnswatcher`)
+
+## Render Service
+
+- Host: Render Web Service
+- Service ID: `srv-d90g7a8k1i2s73flbo3g`
+- Service name: `dnswatcher`
+- Region: `oregon`
+- Plan: `free`
+- Runtime: Docker
+- URL: `https://dnswatcher.onrender.com`
+- Branch: `feat/add-ci`
+- Deployed commit: `aa7e4dfa06ce8a64ca36cab8f8effc41397609ec`
+- Deploy ID: `dep-d90g7agk1i2s73flboj0`
+- Deploy result: `live`
 
 ## Verification Commands
 
@@ -38,12 +55,15 @@ make build
 make docker-build
 render blueprints validate render.yaml
 curl -fsS http://127.0.0.1:8081/healthz
+render services create ... --runtime docker --region oregon --plan free
+render deploys list srv-d90g7a8k1i2s73flbo3g --output json
 ```
 
 Failed as runtime-path evidence:
 
 ```sh
 BASE_URL=http://127.0.0.1:8081 make runtime-smoke
+BASE_URL=https://dnswatcher.onrender.com make runtime-smoke
 ```
 
 Failure:
@@ -51,6 +71,16 @@ Failure:
 ```text
 ok: /healthz
 example.com A expected outcome success, got refused.
+```
+
+Render failure:
+
+```text
+ok: /healthz
+ok: example.com A -> success (3 hops)
+ok: example.com AAAA -> success (3 hops)
+ok: example.com NS -> success (3 hops)
+www.github.com A expected outcome success, got max_depth.
 ```
 
 ## Local Container Evidence
@@ -81,6 +111,72 @@ Container log evidence:
 
 The log uses a hashed client key and does not include the raw queried domain.
 
+## Render Runtime Evidence
+
+Render proves that the deployed container can boot and perform basic iterative
+DNS from the hosted runtime:
+
+- `GET /healthz`: success
+- `example.com A`: success, 3 hops
+- `example.com AAAA`: success, 3 hops
+- `example.com NS`: success, 3 hops
+- `www.github.com A`: returns `max_depth`, 45 hops
+- invalid `bad..domain A`: HTTP 400 with `invalid_domain_input`
+- no observed `hop_purpose: terminal`
+
+The CNAME proof is not accepted. The `www.github.com A` response repeats
+referral and answer behavior until max depth instead of completing the expected
+CNAME restart path.
+
+The raw `www.github.com A` JSON also still contains at least one `null` value
+(`parent_index: null`). RRset and next-target collections are arrays, but the
+current smoke requirement said no null arrays/next-target arrays and the public
+proof should tighten this into an explicit normalized-response invariant.
+
+Render app log evidence after smoke/browser checks:
+
+```text
+"msg":"trace_completed","client":"96baabe85fc7","qtype":"A","outcome":"success","hop_count":3
+"msg":"trace_completed","client":"96baabe85fc7","qtype":"AAAA","outcome":"success","hop_count":3
+"msg":"trace_completed","client":"96baabe85fc7","qtype":"NS","outcome":"success","hop_count":3
+"msg":"trace_completed","client":"96baabe85fc7","qtype":"A","outcome":"max_depth","hop_count":45
+```
+
+The app log events use a short hashed client key and do not include the raw
+queried domain.
+
+## Browser QA Evidence
+
+The in-app browser path was blocked by the browser client with
+`ERR_BLOCKED_BY_CLIENT` for the Render URL. Headless Chrome/CDP was used as a
+fallback browser check.
+
+Observed browser pass:
+
+- deployed page title: `DNSWatcher`
+- deployed URL loaded nonblank
+- flagship title visible
+- truth notes visible on the first screen
+- `example.com / A` trace completed successfully
+- beginner mode showed what happened / why next / why stop copy
+- advanced mode exposed raw protocol fields including qname, qtype, server,
+  transport, latency, rcode, AA/TC, RRsets, and next targets
+- official source cards visible after trace
+- raw export button enabled and created an `application/json` blob
+- invalid input API check returned `400 invalid_domain_input`
+
+Observed browser issue:
+
+- at a 1440 px wide viewport, the trace workspace horizontally overflowed
+  (`documentElement.scrollWidth` 1577 vs `innerWidth` 1440), clipping the details
+  column in the captured screenshot.
+
+Screenshot evidence was captured outside the repo:
+
+- `/tmp/dnswatcher-render-home.png`
+- `/tmp/dnswatcher-cdp-initial.png`
+- `/tmp/dnswatcher-cdp-after-trace.png`
+
 ## Result
 
 Runtime proof is not complete.
@@ -90,22 +186,23 @@ app, but outbound iterative DNS to public root servers returns `REFUSED`.
 That is a runtime-path proof failure, not evidence that the deterministic trace
 engine is broken.
 
-Render was not deployed because the current flagship implementation is not
-available to Render's Git-backed deploy path and no prebuilt registry image URL
-was supplied. A deploy from the current remote branch would not prove this local
-flagship state.
+Render is viable for booting the current Docker app and for outbound iterative
+DNS to public root/TLD/authoritative servers for simple A/AAAA/NS traces.
+
+Render is not yet proven viable for the full flagship runtime proof because the
+required CNAME smoke target (`www.github.com A`) ends at `max_depth`, and browser
+QA found a desktop overflow issue. Do not weaken the DNS truth constraints to
+make this pass.
 
 ## Next Required Move
 
-Choose one source-publication path, then deploy:
+1. Fix the CNAME restart/max-depth loop with deterministic backend tests first.
+2. Tighten raw response normalization so public proof checks distinguish allowed
+   nullable scalar fields from forbidden null RRset/next-target arrays.
+3. Fix the trace workspace horizontal overflow at desktop widths.
+4. Rerun `BASE_URL=https://dnswatcher.onrender.com make runtime-smoke` and the
+   deployed browser QA.
 
-1. Approve commit and push of the current DNSWatcher branch, then create a
-   Render Web Service from `render.yaml` and run `BASE_URL=<render-url> make
-   runtime-smoke`.
-2. Or provide/approve a registry image path and push `dnswatcher:local` to that
-   registry, then create an image-backed Render service.
-
-If Render passes health but returns immediate `refused` or `timeout` from the
-first public DNS trace, stop and record Render as incompatible for this product
-truth lane. The next candidate should be Koyeb, Fly.io, or a small Docker VM
-where outbound UDP/TCP destination port 53 can be explicitly allowed.
+Render should remain the first candidate after those repairs because it already
+proved basic outbound DNS. A Docker VM is the next candidate only if the repaired
+trace still shows host-specific UDP/TCP DNS failures.
