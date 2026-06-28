@@ -58,6 +58,15 @@ If the live checks fail immediately with `refused` or `timeout` on the first pub
 2. Trigger concurrency limiting and confirm the API returns `429`.
 3. Confirm the service remains responsive after repeated one-off client requests.
 
+For private alpha, run:
+
+```sh
+BASE_URL=<candidate> make private-alpha-check
+```
+
+That command runs the normal runtime smoke, then verifies hosted rate limiting
+with a synthetic client and checks `/healthz` remains responsive afterward.
+
 ## Release gate
 
 DNSWatcher is only runtime-ready when all checks above pass on the chosen host without changing the product truth note or relaxing the public-IP-only DNS egress policy.
