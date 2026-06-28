@@ -76,7 +76,7 @@
       "index": 2,
       "parent_index": null,
       "role": "final",
-      "hop_purpose": "terminal",
+      "hop_purpose": "delegation",
       "zone_context": "example.com.",
       "server_name": "ns1.example.com.",
       "server_ip": "93.184.216.34",

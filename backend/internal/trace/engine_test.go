@@ -1,7 +1,9 @@
 package trace_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"testing"
 	"time"
@@ -117,6 +119,11 @@ func TestTraceHandlesReferralCNAMEAndNODATA(t *testing.T) {
 	if success.FinalOutcome.Kind != "success" || len(success.Hops) != 3 {
 		t.Fatalf("unexpected success trace: %+v", success.FinalOutcome)
 	}
+	assertNoTerminalHopPurpose(t, success.Hops)
+	if success.Hops[success.FinalOutcome.TerminalHopIndex].HopPurpose != "delegation" {
+		t.Fatalf("expected terminal success hop to keep delegation purpose, got %q", success.Hops[success.FinalOutcome.TerminalHopIndex].HopPurpose)
+	}
+	assertTraceJSONUsesArrays(t, success)
 
 	cname, err := engine.Trace(context.Background(), contracts.TraceRequest{Domain: "www.example.com", QType: "A"})
 	if err != nil {
@@ -131,6 +138,16 @@ func TestTraceHandlesReferralCNAMEAndNODATA(t *testing.T) {
 	if !foundCNAME {
 		t.Fatalf("expected cname hop, got %+v", cname.Hops)
 	}
+	assertNoTerminalHopPurpose(t, cname.Hops)
+	foundCNAMEFollow := false
+	for _, hop := range cname.Hops {
+		if hop.HopPurpose == "cname_follow" {
+			foundCNAMEFollow = true
+		}
+	}
+	if !foundCNAMEFollow {
+		t.Fatalf("expected at least one CNAME restart hop to use cname_follow purpose, got %+v", cname.Hops)
+	}
 
 	nodata, err := engine.Trace(context.Background(), contracts.TraceRequest{Domain: "nodata.example.com", QType: "AAAA"})
 	if err != nil {
@@ -142,6 +159,10 @@ func TestTraceHandlesReferralCNAMEAndNODATA(t *testing.T) {
 	lastHop := nodata.Hops[len(nodata.Hops)-1]
 	if lastHop.ResponseKind != "nodata" {
 		t.Fatalf("expected nodata response kind, got %s", lastHop.ResponseKind)
+	}
+	assertNoTerminalHopPurpose(t, nodata.Hops)
+	if lastHop.HopPurpose != "delegation" {
+		t.Fatalf("expected terminal NODATA hop to keep delegation purpose, got %q", lastHop.HopPurpose)
 	}
 }
 
@@ -259,6 +280,7 @@ func TestTraceHandlesSupportLookupAndTCPFallback(t *testing.T) {
 	if result.FinalOutcome.Kind != "success" {
 		t.Fatalf("expected success, got %+v", result.FinalOutcome)
 	}
+	assertNoTerminalHopPurpose(t, result.Hops)
 	foundSupportHop := false
 	foundTCP := false
 	for _, hop := range result.Hops {
@@ -346,6 +368,7 @@ func TestTraceClassifiesRefusedAndNotImplemented(t *testing.T) {
 	if refused.FinalOutcome.Kind != "refused" {
 		t.Fatalf("expected refused outcome, got %+v", refused.FinalOutcome)
 	}
+	assertNoTerminalHopPurpose(t, refused.Hops)
 
 	notImplemented, err := engine.Trace(context.Background(), contracts.TraceRequest{Domain: "notimp.example.com", QType: "A"})
 	if err != nil {
@@ -354,6 +377,7 @@ func TestTraceClassifiesRefusedAndNotImplemented(t *testing.T) {
 	if notImplemented.FinalOutcome.Kind != "not_implemented" {
 		t.Fatalf("expected not_implemented outcome, got %+v", notImplemented.FinalOutcome)
 	}
+	assertNoTerminalHopPurpose(t, notImplemented.Hops)
 }
 
 func TestTraceStopsOnBlockedReferralDestination(t *testing.T) {
@@ -401,6 +425,34 @@ func TestTraceStopsOnBlockedReferralDestination(t *testing.T) {
 	}
 	if len(result.Hops) == 0 || result.Hops[len(result.Hops)-1].ResponseKind != "error" {
 		t.Fatalf("expected terminal error hop, got %+v", result.Hops)
+	}
+	assertNoTerminalHopPurpose(t, result.Hops)
+}
+
+func assertNoTerminalHopPurpose(t *testing.T, hops []contracts.Hop) {
+	t.Helper()
+	for _, hop := range hops {
+		if hop.HopPurpose == "terminal" {
+			t.Fatalf("hop %d used unsupported terminal hop_purpose: %+v", hop.Index, hop)
+		}
+	}
+}
+
+func assertTraceJSONUsesArrays(t *testing.T, result contracts.TraceResult) {
+	t.Helper()
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal trace result: %v", err)
+	}
+	for _, fragment := range [][]byte{
+		[]byte(`"answer_rrsets":null`),
+		[]byte(`"authority_rrsets":null`),
+		[]byte(`"additional_rrsets":null`),
+		[]byte(`"next_targets":null`),
+	} {
+		if bytes.Contains(payload, fragment) {
+			t.Fatalf("trace JSON contained null array field %s: %s", fragment, payload)
+		}
 	}
 }
 
