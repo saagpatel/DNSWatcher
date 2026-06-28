@@ -583,7 +583,7 @@ h3 {
   border: 0;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1500px) {
   .workspace-grid {
     grid-template-columns: minmax(18rem, 26rem) minmax(0, 1fr);
   }
