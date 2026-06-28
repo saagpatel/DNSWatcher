@@ -74,18 +74,13 @@ reachable. No missing or renamed targets.
 ---
 
 ### 5 · Known risks (code↔doc contradictions)
-**Status: consistent** for docs-to-code; one contract-vs-code discrepancy noted below.
+**Status: reconciled**
 
-All docs-to-code comparisons are accurate. One cross-layer discrepancy worth a human eye:
-
-**`contracts/openapi.yaml` + `docs/02-api-contract.md` — `hop_purpose: terminal`**
-Both the OpenAPI contract and the API contract doc list `"terminal"` as a valid enum value
-for `hop_purpose`. Reading `backend/internal/trace/engine.go` exhaustively, the engine only
-ever sets `hop_purpose` to `"delegation"`, `"nameserver_address_lookup"`, or `"cname_follow"`.
-The value `"terminal"` is never produced. This is a contract-ahead-of-implementation gap.
-`docs/02-api-contract.md` was left unchanged because it accurately mirrors `contracts/openapi.yaml`
-(which is outside the editable doc scope). The gap should be resolved either by implementing
-the `"terminal"` purpose or removing it from the OpenAPI schema.
+The earlier `hop_purpose: terminal` contract-ahead-of-implementation gap has been resolved.
+`contracts/openapi.yaml`, generated frontend types, examples, backend output, runtime smoke,
+and the product truth constraints now agree that terminal state belongs to
+`final_outcome.terminal_hop_index` and terminal hop response fields, not a separate
+`hop_purpose` enum value.
 
 ---
 
