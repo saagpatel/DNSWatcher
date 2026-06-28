@@ -93,7 +93,7 @@ export interface components {
             /** @enum {string} */
             role: "root" | "tld" | "authoritative" | "alias" | "final" | "error";
             /** @enum {string} */
-            hop_purpose: "delegation" | "nameserver_address_lookup" | "cname_follow" | "terminal";
+            hop_purpose: "delegation" | "nameserver_address_lookup" | "cname_follow";
             zone_context: string;
             server_name: string;
             server_ip: string;

@@ -13,7 +13,7 @@ export const traceWithSupportFixture: TraceResult = {
     kind: 'success',
     rcode: 'NOERROR',
     message: 'Authoritative answer returned.',
-    terminal_hop_index: 4,
+    terminal_hop_index: 3,
   },
   hops: [
     {
@@ -148,6 +148,15 @@ export const traceWithSupportFixture: TraceResult = {
       code: 'not_user_resolver_path',
       message:
         'Timings reflect that service’s network path, not your device’s resolver path.',
+    },
+    {
+      code: 'live_results_vary',
+      message: 'DNS data and network paths can change between runs.',
+    },
+    {
+      code: 'qname_minimization_deferred',
+      message:
+        'V1 sends the full QNAME to each queried server; QNAME minimization is deferred.',
     },
   ],
 }
