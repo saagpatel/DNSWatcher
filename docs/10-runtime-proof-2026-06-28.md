@@ -177,9 +177,56 @@ Screenshot evidence was captured outside the repo:
 - `/tmp/dnswatcher-cdp-initial.png`
 - `/tmp/dnswatcher-cdp-after-trace.png`
 
+## Repair Proof
+
+The next repair lane fixed the CNAME/runtime proof failure without weakening DNS
+truth constraints:
+
+- referral continuation now tries safe glue from the referral response before
+  spending budget on nameserver-address support lookups
+- deterministic backend coverage locks the CNAME restart case where mixed
+  glue/missing-glue referrals previously exhausted the upstream query budget
+- runtime smoke now rejects `hop_purpose: terminal` and verifies RRset and
+  next-target fields are arrays
+- the 1440 px trace workspace overflow was fixed by moving the two-column trace
+  layout breakpoint to match the fixed hero rail
+
+Final runtime-proof deployment:
+
+- Service ID: `srv-d90g7a8k1i2s73flbo3g`
+- URL: `https://dnswatcher.onrender.com`
+- Region: `oregon`
+- Branch: `feat/add-ci`
+- Deploy ID: `dep-d90gk7gjs32c73cikhm0`
+- Deployed commit: `d77360c48d40fb3d03df4a371aeb5faebcd59ba2`
+- Deploy result: `live`
+
+Final hosted smoke:
+
+```text
+ok: /healthz
+ok: example.com A -> success (3 hops)
+ok: example.com AAAA -> success (3 hops)
+ok: example.com NS -> success (3 hops)
+ok: www.github.com A -> success (6 hops)
+ok: www.github.com A includes cname hop
+ok: invalid domain rejected with invalid_domain_input
+```
+
+Final in-app browser QA at 1440 px:
+
+- page title: `DNSWatcher`
+- deployed URL loaded nonblank
+- `www.github.com / A` trace succeeded and showed a CNAME restart
+- truth notes and official source cards remained visible
+- advanced mode exposed raw protocol fields and RRsets
+- raw export button was enabled
+- console warnings/errors: none observed
+- horizontal overflow: fixed (`scrollWidth` 1440, `innerWidth` 1440)
+
 ## Result
 
-Runtime proof is not complete.
+Runtime proof is complete for private alpha.
 
 The current local environment and local Docker container can build and boot the
 app, but outbound iterative DNS to public root servers returns `REFUSED`.
@@ -187,22 +234,13 @@ That is a runtime-path proof failure, not evidence that the deterministic trace
 engine is broken.
 
 Render is viable for booting the current Docker app and for outbound iterative
-DNS to public root/TLD/authoritative servers for simple A/AAAA/NS traces.
-
-Render is not yet proven viable for the full flagship runtime proof because the
-required CNAME smoke target (`www.github.com A`) ends at `max_depth`, and browser
-QA found a desktop overflow issue. Do not weaken the DNS truth constraints to
-make this pass.
+DNS to public root/TLD/authoritative servers for the flagship A/AAAA/NS/CNAME
+runtime proof path.
 
 ## Next Required Move
 
-1. Fix the CNAME restart/max-depth loop with deterministic backend tests first.
-2. Tighten raw response normalization so public proof checks distinguish allowed
-   nullable scalar fields from forbidden null RRset/next-target arrays.
-3. Fix the trace workspace horizontal overflow at desktop widths.
-4. Rerun `BASE_URL=https://dnswatcher.onrender.com make runtime-smoke` and the
-   deployed browser QA.
-
-Render should remain the first candidate after those repairs because it already
-proved basic outbound DNS. A Docker VM is the next candidate only if the repaired
-trace still shows host-specific UDP/TCP DNS failures.
+1. Keep Render as the private alpha host.
+2. Add lightweight rate/load checks before public launch.
+3. Review production logging retention and alert thresholds.
+4. Decide whether to merge the feature branch after one more release-readiness
+   pass.
