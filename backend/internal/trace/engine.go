@@ -342,8 +342,12 @@ func (e *Engine) nextCandidatesForReferral(ctx context.Context, state *traceStat
 				candidates = append(candidates, ServerCandidate{name: nsName, ip: ip, endpoint: e.cfg.EndpointResolver(ip), zone: zone})
 				nextTargets = append(nextTargets, contracts.NextTarget{ServerName: nsName, ServerIP: ip, ZoneContext: zone, Reason: "Glue from referral response."})
 			}
-			continue
 		}
+	}
+	if len(candidates) > 0 {
+		return candidates, nextTargets, "Referral continuation used safe glue records from the response.", nil
+	}
+	for _, nsName := range nsNames {
 		ips, err := e.resolveNameServerAddresses(ctx, state, nsName, parentIndex)
 		if err != nil {
 			continue

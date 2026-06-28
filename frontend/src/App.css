@@ -85,6 +85,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-width: 0;
 }
 
 .eyebrow,
@@ -298,6 +299,7 @@ h3 {
 .timeline-panel,
 .details-panel,
 .empty-state {
+  min-width: 0;
   background: rgba(28, 32, 38, 0.92);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -526,6 +528,7 @@ h3 {
 .details-grid dd {
   margin: 0;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .failure-callout {
@@ -545,6 +548,8 @@ h3 {
 .inline-list {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .truth-list {
