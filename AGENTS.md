@@ -41,7 +41,7 @@
 
 ## What This Project Is
 
-DNSWatcher is an active local project in the /Users/d/Projects portfolio.
+DNSWatcher is an active local project in the ~/Projects portfolio.
 
 ## Current State
 
