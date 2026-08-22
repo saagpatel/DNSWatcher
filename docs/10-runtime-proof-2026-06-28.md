@@ -23,8 +23,8 @@ truthfully on a real host without weakening product truth.
 ## Render Access Check
 
 - Render CLI installed: `render v2.20.0`
-- Authenticated user: Saagar / `saagar210@gmail.com`
-- Active workspace: `Saagar's workspace`
+- Authenticated user: authenticated as the repository owner (contact details redacted)
+- Active workspace: the owner's default workspace
 - Existing services listed: one unrelated `mcpaudit-chatgpt-app-service`
 - DNSWatcher service created from the repo branch and Docker config
 - `render blueprints validate render.yaml`: valid, one planned service
