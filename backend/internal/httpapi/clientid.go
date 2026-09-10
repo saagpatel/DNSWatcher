@@ -91,8 +91,16 @@ func resolveClientIdentity(remoteAddr string, header http.Header, trusted []neti
 		}
 	}
 
-	forwardedHops, _ := parseForwardedForAddrs(header.Values("Forwarded"))
-	xffHops, _ := parseXForwardedForAddrs(header.Values("X-Forwarded-For"))
+	forwardedHops, forwardedMalformed := parseForwardedForAddrs(header.Values("Forwarded"))
+	xffHops, xffMalformed := parseXForwardedForAddrs(header.Values("X-Forwarded-For"))
+	if forwardedMalformed || xffMalformed {
+		return clientIdentity{
+			Address:       peerKey,
+			Source:        clientSourceRemoteAddr,
+			Disposition:   forwardedDispositionIgnoredMalformed,
+			IgnoredReason: "malformed",
+		}
+	}
 	forwardedClient, forwardedOK, forwardedAllTrusted := clientFromTrustedChain(forwardedHops, trusted)
 	xffClient, xffOK, xffAllTrusted := clientFromTrustedChain(xffHops, trusted)
 
@@ -178,69 +186,82 @@ func addrIsTrusted(addr netip.Addr, trusted []netip.Prefix) bool {
 
 func parseXForwardedForAddrs(values []string) ([]netip.Addr, bool) {
 	var hops []netip.Addr
-	malformed := false
 	for _, value := range values {
 		for _, part := range strings.Split(value, ",") {
 			part = strings.TrimSpace(part)
 			if part == "" {
-				continue
+				return nil, true
 			}
 			addr, ok := parseIPHop(part)
 			if !ok {
-				malformed = true
-				continue
+				return nil, true
 			}
 			hops = append(hops, addr)
 		}
 	}
-	return hops, malformed
+	return hops, false
 }
 
 func parseForwardedForAddrs(values []string) ([]netip.Addr, bool) {
 	var hops []netip.Addr
-	malformed := false
 	for _, value := range values {
 		for _, element := range splitIgnoringQuotes(value, ',') {
 			element = strings.TrimSpace(element)
 			if element == "" {
-				continue
+				return nil, true
 			}
-			forParam, found := forwardedForParam(element)
-			if !found {
-				malformed = true
-				continue
-			}
-			addr, ok := parseIPHop(forParam)
+			forParam, ok := parseForwardedElement(element)
 			if !ok {
-				malformed = true
-				continue
+				return nil, true
+			}
+			addr, hopOK := parseIPHop(forParam)
+			if !hopOK {
+				return nil, true
 			}
 			hops = append(hops, addr)
 		}
 	}
-	return hops, malformed
+	return hops, false
 }
 
-func forwardedForParam(element string) (string, bool) {
+func parseForwardedElement(element string) (string, bool) {
+	var forVal string
+	seenFor := false
+	seen := map[string]bool{}
 	for _, pair := range splitIgnoringQuotes(element, ';') {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
-			continue
+			return "", false
 		}
 		key, value, ok := strings.Cut(pair, "=")
 		if !ok {
-			continue
+			return "", false
 		}
-		if !strings.EqualFold(strings.TrimSpace(key), "for") {
+		key = strings.ToLower(strings.TrimSpace(key))
+		if key == "" {
+			return "", false
+		}
+		switch key {
+		case "for", "by", "host", "proto":
+			if seen[key] {
+				return "", false
+			}
+			seen[key] = true
+		}
+		if key != "for" {
 			continue
 		}
 		unquoted, valid := unquoteForwardedValue(strings.TrimSpace(value))
-		if !valid {
+		if !valid || unquoted == "" {
 			return "", false
 		}
-		return unquoted, true
+		forVal = unquoted
+		seenFor = true
 	}
-	return "", false
+	if !seenFor {
+		return "", false
+	}
+	return forVal, true
 }
 
 func unquoteForwardedValue(value string) (string, bool) {

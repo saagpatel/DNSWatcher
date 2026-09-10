@@ -109,6 +109,9 @@ Remaining platform limits:
   direct peer is used so those headers cannot select the rate-limit bucket.
 - Malformed `Forwarded` quote syntax (unbalanced or doubled quotes) is
   rejected rather than stripped into an IP.
+- A malformed hop in `Forwarded` or `X-Forwarded-For` fails closed to the
+  direct peer with `ignored_malformed`; surviving hops in that request are
+  not used, including when the other forwarded header is otherwise valid.
 - A trusted proxy must overwrite or append the header it maintains. A
   client-supplied header the proxy does not touch remains spoofable; when
   the two headers conflict, DNSWatcher fails closed to the peer.
