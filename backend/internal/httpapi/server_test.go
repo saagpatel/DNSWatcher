@@ -242,6 +242,59 @@ func TestCreateTraceMalformedForwardedHeadersStayOnTrustedPeer(t *testing.T) {
 	}
 }
 
+func TestCreateTraceRejectsMalformedQuotesAndAllTrustedChains(t *testing.T) {
+	result := contracts.TraceResult{QType: "A", FinalOutcome: contracts.FinalOutcome{Kind: "success"}, Hops: []contracts.Hop{{Index: 0}}, TotalDurationMS: 12}
+	trusted, invalid := httpapi.ParseTrustedProxyCIDRs([]string{"10.0.0.0/8", "2001:db8:1::/64"})
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid CIDRs: %v", invalid)
+	}
+	server := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
+		RateLimitPerMinute: 1,
+		Burst:              1,
+		TrustedProxyCIDRs:  trusted,
+	})
+	handler := server.Handler()
+
+	if got := postTrace(t, handler, "10.0.0.2:80", http.Header{"Forwarded": []string{`for="198.51.100.1`}}); got != http.StatusOK {
+		t.Fatalf("expected 200 using the trusted peer after unbalanced quotes, got %d", got)
+	}
+	if got := postTrace(t, handler, "10.0.0.2:81", http.Header{"Forwarded": []string{`for=""198.51.100.1""`}}); got != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when doubled quotes keep the direct-peer key, got %d", got)
+	}
+
+	other := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
+		RateLimitPerMinute: 1,
+		Burst:              1,
+		TrustedProxyCIDRs:  trusted,
+	})
+	otherHandler := other.Handler()
+	if got := postTrace(t, otherHandler, "10.0.0.2:80", http.Header{"X-Forwarded-For": []string{"10.0.0.8, 10.0.0.9"}}); got != http.StatusOK {
+		t.Fatalf("expected 200 for first all-trusted xff chain, got %d", got)
+	}
+	if got := postTrace(t, otherHandler, "10.0.0.2:80", http.Header{"X-Forwarded-For": []string{"10.0.0.9, 10.0.0.8"}}); got != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when a different all-trusted chain cannot select a new bucket, got %d", got)
+	}
+
+	forwardedPeer := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
+		RateLimitPerMinute: 1,
+		Burst:              1,
+		TrustedProxyCIDRs:  trusted,
+	})
+	forwardedHandler := forwardedPeer.Handler()
+	if got := postTrace(t, forwardedHandler, "10.0.0.2:80", http.Header{"Forwarded": []string{`for=10.0.0.8, for=10.0.0.9`}}); got != http.StatusOK {
+		t.Fatalf("expected 200 for first all-trusted forwarded chain, got %d", got)
+	}
+	if got := postTrace(t, forwardedHandler, "10.0.0.3:80", http.Header{"X-Forwarded-For": []string{"198.51.100.30, 10.0.0.8"}}); got != http.StatusOK {
+		t.Fatalf("expected 200 for a real untrusted client through another trusted proxy, got %d", got)
+	}
+	if got := postTrace(t, forwardedHandler, "10.0.0.4:80", http.Header{"X-Forwarded-For": []string{"198.51.100.30"}}); got != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when right-to-left resolution still shares the untrusted client, got %d", got)
+	}
+}
+
 func postTrace(t *testing.T, handler http.Handler, remoteAddr string, header http.Header) int {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/traces", strings.NewReader(`{"domain":"example.com","qtype":"A"}`))

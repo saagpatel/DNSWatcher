@@ -17,6 +17,7 @@ const (
 	forwardedDispositionIgnoredUntrustedPeer = "ignored_untrusted_peer"
 	forwardedDispositionIgnoredMalformed     = "ignored_malformed"
 	forwardedDispositionIgnoredConflict      = "ignored_conflict"
+	forwardedDispositionIgnoredAllTrusted    = "ignored_all_trusted"
 )
 
 // clientIdentity is the canonical rate-limit key derived from a request.
@@ -74,8 +75,8 @@ func resolveClientIdentity(remoteAddr string, header http.Header, trusted []neti
 
 	forwardedHops, _ := parseForwardedForAddrs(header.Values("Forwarded"))
 	xffHops, _ := parseXForwardedForAddrs(header.Values("X-Forwarded-For"))
-	forwardedClient, forwardedOK := clientFromTrustedChain(forwardedHops, trusted)
-	xffClient, xffOK := clientFromTrustedChain(xffHops, trusted)
+	forwardedClient, forwardedOK, forwardedAllTrusted := clientFromTrustedChain(forwardedHops, trusted)
+	xffClient, xffOK, xffAllTrusted := clientFromTrustedChain(xffHops, trusted)
 
 	switch {
 	case forwardedOK && xffOK && forwardedClient.Compare(xffClient) != 0:
@@ -96,6 +97,13 @@ func resolveClientIdentity(remoteAddr string, header http.Header, trusted []neti
 			Address:     canonicalAddr(forwardedClient),
 			Source:      clientSourceForwarded,
 			Disposition: forwardedDispositionHonored,
+		}
+	case forwardedAllTrusted || xffAllTrusted:
+		return clientIdentity{
+			Address:       peerKey,
+			Source:        clientSourceRemoteAddr,
+			Disposition:   forwardedDispositionIgnoredAllTrusted,
+			IgnoredReason: "all_trusted_hops",
 		}
 	default:
 		return clientIdentity{
@@ -125,16 +133,16 @@ func peerIdentity(remoteAddr string) (netip.Addr, string) {
 	return netip.Addr{}, remoteAddr
 }
 
-func clientFromTrustedChain(hops []netip.Addr, trusted []netip.Prefix) (netip.Addr, bool) {
+func clientFromTrustedChain(hops []netip.Addr, trusted []netip.Prefix) (netip.Addr, bool, bool) {
 	if len(hops) == 0 {
-		return netip.Addr{}, false
+		return netip.Addr{}, false, false
 	}
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !addrIsTrusted(hops[i], trusted) {
-			return hops[i], true
+			return hops[i], true, false
 		}
 	}
-	return hops[0], true
+	return netip.Addr{}, false, true
 }
 
 func addrIsTrusted(addr netip.Addr, trusted []netip.Prefix) bool {
@@ -208,21 +216,41 @@ func forwardedForParam(element string) (string, bool) {
 		if !strings.EqualFold(strings.TrimSpace(key), "for") {
 			continue
 		}
-		return unquoteForwardedValue(strings.TrimSpace(value)), true
+		unquoted, valid := unquoteForwardedValue(strings.TrimSpace(value))
+		if !valid {
+			return "", false
+		}
+		return unquoted, true
 	}
 	return "", false
 }
 
-func unquoteForwardedValue(value string) string {
-	if len(value) < 2 || value[0] != '"' || value[len(value)-1] != '"' {
-		return value
+func unquoteForwardedValue(value string) (string, bool) {
+	if value == "" {
+		return "", false
 	}
-	inner := value[1 : len(value)-1]
+	if value[0] != '"' {
+		if strings.ContainsRune(value, '"') {
+			return "", false
+		}
+		return value, true
+	}
+	return parseQuotedString(value)
+}
+
+func parseQuotedString(value string) (string, bool) {
+	if len(value) < 2 || value[0] != '"' {
+		return "", false
+	}
 	var b strings.Builder
-	b.Grow(len(inner))
+	b.Grow(len(value))
 	escaped := false
-	for i := 0; i < len(inner); i++ {
-		c := inner[i]
+	closed := false
+	for i := 1; i < len(value); i++ {
+		c := value[i]
+		if closed {
+			return "", false
+		}
 		if escaped {
 			b.WriteByte(c)
 			escaped = false
@@ -232,9 +260,16 @@ func unquoteForwardedValue(value string) string {
 			escaped = true
 			continue
 		}
+		if c == '"' {
+			closed = true
+			continue
+		}
 		b.WriteByte(c)
 	}
-	return b.String()
+	if escaped || !closed {
+		return "", false
+	}
+	return b.String(), true
 }
 
 func splitIgnoringQuotes(value string, sep byte) []string {
@@ -272,8 +307,7 @@ func splitIgnoringQuotes(value string, sep byte) []string {
 
 func parseIPHop(value string) (netip.Addr, bool) {
 	value = strings.TrimSpace(value)
-	value = strings.Trim(value, `"`)
-	if value == "" || strings.EqualFold(value, "unknown") || strings.HasPrefix(value, "_") {
+	if value == "" || strings.ContainsRune(value, '"') || strings.EqualFold(value, "unknown") || strings.HasPrefix(value, "_") {
 		return netip.Addr{}, false
 	}
 	if strings.HasPrefix(value, "[") {

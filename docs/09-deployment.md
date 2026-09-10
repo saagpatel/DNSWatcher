@@ -102,6 +102,10 @@ Remaining platform limits:
   `X-Real-IP` are never trusted.
 - If `Forwarded` and `X-Forwarded-For` both yield usable clients and they
   disagree, both are ignored and the direct peer is used.
+- If a trusted peer supplies a forwarded chain with no untrusted hop, the
+  direct peer is used so those headers cannot select the rate-limit bucket.
+- Malformed `Forwarded` quote syntax (unbalanced or doubled quotes) is
+  rejected rather than stripped into an IP.
 - A trusted proxy must overwrite or append the header it maintains. A
   client-supplied header the proxy does not touch remains spoofable; when
   the two headers conflict, DNSWatcher fails closed to the peer.
