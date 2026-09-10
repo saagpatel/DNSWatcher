@@ -30,8 +30,10 @@ type clientIdentity struct {
 }
 
 // ParseTrustedProxyCIDRs parses configured proxy networks. Bare IPs are
-// accepted as single-host prefixes. Invalid values are returned separately so
-// callers can fail closed at process startup.
+// accepted as single-host prefixes. IPv4-mapped IPv6 prefixes such as
+// ::ffff:10.0.0.0/120 are canonicalized to IPv4 (10.0.0.0/24) so they match
+// unmapped IPv4 peers. Invalid values are returned separately so callers can
+// fail closed at process startup.
 func ParseTrustedProxyCIDRs(values []string) (prefixes []netip.Prefix, invalid []string) {
 	for _, raw := range values {
 		raw = strings.TrimSpace(raw)
@@ -45,12 +47,28 @@ func ParseTrustedProxyCIDRs(values []string) (prefixes []netip.Prefix, invalid [
 				invalid = append(invalid, raw)
 				continue
 			}
-			addr = addr.Unmap()
 			prefix = netip.PrefixFrom(addr, addr.BitLen())
 		}
-		prefixes = append(prefixes, prefix)
+		prefixes = append(prefixes, canonicalizeTrustedPrefix(prefix))
 	}
 	return prefixes, invalid
+}
+
+func canonicalizeTrustedPrefix(prefix netip.Prefix) netip.Prefix {
+	prefix = prefix.Masked()
+	addr := prefix.Addr()
+	if !addr.Is4In6() {
+		return prefix
+	}
+	ipv4 := addr.Unmap()
+	bits := prefix.Bits() - (addr.BitLen() - ipv4.BitLen())
+	if bits < 0 {
+		bits = 0
+	}
+	if bits > ipv4.BitLen() {
+		bits = ipv4.BitLen()
+	}
+	return netip.PrefixFrom(ipv4, bits)
 }
 
 func resolveClientIdentity(remoteAddr string, header http.Header, trusted []netip.Prefix) clientIdentity {
@@ -151,7 +169,7 @@ func addrIsTrusted(addr netip.Addr, trusted []netip.Prefix) bool {
 	}
 	addr = addr.Unmap()
 	for _, prefix := range trusted {
-		if prefix.Contains(addr) {
+		if canonicalizeTrustedPrefix(prefix).Contains(addr) {
 			return true
 		}
 	}

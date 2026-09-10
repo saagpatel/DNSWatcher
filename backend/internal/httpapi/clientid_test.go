@@ -29,6 +29,44 @@ func TestParseTrustedProxyCIDRs(t *testing.T) {
 	}
 }
 
+func TestParseTrustedProxyCIDRsCanonicalizesMappedIPv4Prefix(t *testing.T) {
+	prefixes, invalid := ParseTrustedProxyCIDRs([]string{"::ffff:10.0.0.0/120"})
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid CIDRs: %v", invalid)
+	}
+	if len(prefixes) != 1 {
+		t.Fatalf("expected 1 prefix, got %d", len(prefixes))
+	}
+	got := prefixes[0]
+	want := netip.MustParsePrefix("10.0.0.0/24")
+	if got != want {
+		t.Fatalf("canonical prefix: got %s, want %s", got, want)
+	}
+	if !got.Contains(netip.MustParseAddr("10.0.0.2")) || got.Contains(netip.MustParseAddr("10.0.1.1")) {
+		t.Fatalf("expected 10.0.0.0/24 membership, got %s", got)
+	}
+
+	header := http.Header{"X-Forwarded-For": []string{"198.51.100.30"}}
+	fromIPv4 := resolveClientIdentity("10.0.0.2:80", header, prefixes)
+	if fromIPv4.Address != "198.51.100.30" || fromIPv4.Source != clientSourceXForwardedFor {
+		t.Fatalf("mapped CIDR should trust ipv4 peer 10.0.0.2, got %+v", fromIPv4)
+	}
+	fromMapped := resolveClientIdentity("[::ffff:10.0.0.2]:80", header, prefixes)
+	if fromMapped.Address != "198.51.100.30" || fromMapped.Source != clientSourceXForwardedFor {
+		t.Fatalf("mapped CIDR should trust ipv4-mapped peer ::ffff:10.0.0.2, got %+v", fromMapped)
+	}
+	outside := resolveClientIdentity("10.0.1.2:80", header, prefixes)
+	if outside.Address != "10.0.1.2" || outside.IgnoredReason != "untrusted_peer" {
+		t.Fatalf("mapped CIDR should not trust 10.0.1.2, got %+v", outside)
+	}
+
+	rawMapped := []netip.Prefix{netip.MustParsePrefix("::ffff:10.0.0.0/120")}
+	fromRaw := resolveClientIdentity("10.0.0.2:80", header, rawMapped)
+	if fromRaw.Address != "198.51.100.30" || fromRaw.Source != clientSourceXForwardedFor {
+		t.Fatalf("unnormalized mapped prefix should still trust ipv4 peer 10.0.0.2, got %+v", fromRaw)
+	}
+}
+
 func TestResolveClientIdentity(t *testing.T) {
 	trusted, invalid := ParseTrustedProxyCIDRs([]string{"10.0.0.0/8", "192.0.2.64/32", "2001:db8:1::/64"})
 	if len(invalid) != 0 {
