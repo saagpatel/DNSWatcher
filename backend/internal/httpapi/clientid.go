@@ -238,25 +238,18 @@ func parseForwardedElement(element string) (string, bool) {
 			return "", false
 		}
 		key = strings.ToLower(strings.TrimSpace(key))
-		if key == "" {
+		if !isHTTPToken(key) || seen[key] {
 			return "", false
 		}
-		switch key {
-		case "for", "by", "host", "proto":
-			if seen[key] {
-				return "", false
-			}
-			seen[key] = true
-		}
-		if key != "for" {
-			continue
-		}
+		seen[key] = true
 		unquoted, valid := unquoteForwardedValue(strings.TrimSpace(value))
 		if !valid || unquoted == "" {
 			return "", false
 		}
-		forVal = unquoted
-		seenFor = true
+		if key == "for" {
+			forVal = unquoted
+			seenFor = true
+		}
 	}
 	if !seenFor {
 		return "", false
@@ -268,13 +261,33 @@ func unquoteForwardedValue(value string) (string, bool) {
 	if value == "" {
 		return "", false
 	}
-	if value[0] != '"' {
-		if strings.ContainsRune(value, '"') {
-			return "", false
-		}
-		return value, true
+	if value[0] == '"' {
+		return parseQuotedString(value)
 	}
-	return parseQuotedString(value)
+	if !isHTTPToken(value) {
+		return "", false
+	}
+	return value, true
+}
+
+func isHTTPToken(value string) bool {
+	if value == "" {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if !isTchar(value[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isTchar(c byte) bool {
+	switch c {
+	case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		return true
+	}
+	return c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
 }
 
 func parseQuotedString(value string) (string, bool) {

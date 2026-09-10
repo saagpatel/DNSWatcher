@@ -112,6 +112,9 @@ Remaining platform limits:
 - A malformed hop in `Forwarded` or `X-Forwarded-For` fails closed to the
   direct peer with `ignored_malformed`; surviving hops in that request are
   not used, including when the other forwarded header is otherwise valid.
+- Every `Forwarded` parameter, including `by`, `proto`, `host`, and
+  extensions, must be a token or quoted-string. Duplicate names are
+  rejected case-insensitively.
 - A trusted proxy must overwrite or append the header it maintains. A
   client-supplied header the proxy does not touch remains spoofable; when
   the two headers conflict, DNSWatcher fails closed to the peer.
