@@ -33,6 +33,8 @@
 ## Security and privacy defaults
 
 - Public-IP-only upstream querying in the public service path
+- Rate-limit keys use the direct peer address by default
+- `Forwarded` and `X-Forwarded-For` are honored only when the immediate peer is in `DNSWATCHER_TRUSTED_PROXY_CIDRS`
 - No raw domain logging by default
 - Strict JSON-only POST endpoint
 - Client-side JSON export only

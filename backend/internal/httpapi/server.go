@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -38,6 +37,7 @@ type Config struct {
 	IdleTimeout         time.Duration
 	MaxHeaderBytes      int
 	StaticDir           string
+	TrustedProxyCIDRs   []netip.Prefix
 }
 
 type Server struct {
@@ -53,6 +53,7 @@ type Server struct {
 	lastLimiterCleanup     time.Time
 	semaphore              chan struct{}
 	staticDir              string
+	trustedProxies         []netip.Prefix
 }
 
 type limiterEntry struct {
@@ -93,6 +94,7 @@ func NewServer(tracer Tracer, cfg Config) *Server {
 		lastLimiterCleanup:     time.Now(),
 		semaphore:              make(chan struct{}, maxConcurrent),
 		staticDir:              cfg.StaticDir,
+		trustedProxies:         append([]netip.Prefix(nil), cfg.TrustedProxyCIDRs...),
 	}
 }
 
@@ -124,8 +126,10 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) createTrace(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
-	clientKey := clientKeyFromRequest(r)
+	identity := resolveClientIdentity(r.RemoteAddr, r.Header, s.trustedProxies)
+	clientKey := identity.Address
 	clientLogKey := hashClientKey(clientKey)
+	s.logForwardedHeaderDisposition(identity, clientLogKey)
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, contracts.ErrorResponse{Error: "method_not_allowed", Message: "Use POST /api/v1/traces."})
 		return
@@ -169,6 +173,8 @@ func (s *Server) createTrace(w http.ResponseWriter, r *http.Request) {
 		s.writeTraceError(w, err)
 		s.logger.Warn("trace_failed",
 			slog.String("client", clientLogKey),
+			slog.String("client_source", identity.Source),
+			slog.String("forwarded_headers", identity.Disposition),
 			slog.String("qtype", strings.ToUpper(req.QType)),
 			slog.Duration("duration", time.Since(started)),
 			slog.String("error", err.Error()),
@@ -178,6 +184,8 @@ func (s *Server) createTrace(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("trace_completed",
 		slog.String("client", clientLogKey),
+		slog.String("client_source", identity.Source),
+		slog.String("forwarded_headers", identity.Disposition),
 		slog.String("qtype", result.QType),
 		slog.String("outcome", result.FinalOutcome.Kind),
 		slog.Int("hop_count", len(result.Hops)),
@@ -236,39 +244,16 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func clientKeyFromRequest(r *http.Request) string {
-	for _, header := range []string{"Fly-Client-IP", "CF-Connecting-IP", "X-Real-IP"} {
-		if ip := canonicalClientIP(r.Header.Get(header)); ip != "" {
-			return ip
-		}
+func (s *Server) logForwardedHeaderDisposition(identity clientIdentity, clientLogKey string) {
+	switch identity.IgnoredReason {
+	case "malformed", "conflicting_forwarded_headers":
+		s.logger.Info("forwarded_header_ignored",
+			slog.String("reason", identity.IgnoredReason),
+			slog.String("client", clientLogKey),
+			slog.String("client_source", identity.Source),
+			slog.String("forwarded_headers", identity.Disposition),
+		)
 	}
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		for _, part := range strings.Split(forwarded, ",") {
-			if ip := canonicalClientIP(part); ip != "" {
-				return ip
-			}
-		}
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		if ip := canonicalClientIP(r.RemoteAddr); ip != "" {
-			return ip
-		}
-		return r.RemoteAddr
-	}
-	return host
-}
-
-func canonicalClientIP(value string) string {
-	ip := strings.TrimSpace(value)
-	if ip == "" {
-		return ""
-	}
-	addr, err := netip.ParseAddr(ip)
-	if err != nil {
-		return ""
-	}
-	return addr.String()
 }
 
 func hashClientKey(input string) string {

@@ -15,6 +15,7 @@
 - Deployment runtime may not support truthful UDP/TCP DNS behavior
 - Missing glue and out-of-bailiwick nameservers complicate the hop narrative
 - Anonymous traces can become an abuse vector without rate limits and destination policy
+- Spoofable forwarded headers must not become the rate-limit key unless the immediate peer is a configured trusted proxy
 - Live DNS behavior is nondeterministic, so tests must stay local and deterministic
 
 ## Public service safeguards
@@ -23,6 +24,7 @@
 - Conservative concurrency caps
 - Conservative timeouts and hop budgets
 - Redacted structured logs
+- Direct-peer rate-limit identity unless the immediate peer is a configured trusted proxy
 
 ## Source-backed explanations
 
