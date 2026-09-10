@@ -16,6 +16,9 @@ require_command node
 require_command npm
 require_command go
 
+readonly REQUIRED_GO_TOOLCHAIN=go1.26.2
+readonly GO_TOOLCHAIN="${REQUIRED_GO_TOOLCHAIN}+auto"
+
 node_major="$(node -p 'process.versions.node.split(".")[0]')"
 node_minor="$(node -p 'process.versions.node.split(".")[1]')"
 node_version="$(node --version)"
@@ -33,11 +36,21 @@ test -f backend/go.sum
 test -f frontend/package-lock.json
 test "$(awk '$1 == "go" { print $2; exit }' backend/go.mod)" = "1.26.2"
 
-# npm ci and go.mod/go.sum are the dependency locks. GOTOOLCHAIN=local keeps
-# Go from silently downloading a different toolchain during a cloud run.
+# Cursor Cloud may provide an older system Go. Ask the Go launcher to
+# bootstrap and select the exact toolchain required by go.mod, while allowing
+# the module's own minimum to remain authoritative.
+export GOTOOLCHAIN="$GO_TOOLCHAIN"
+selected_go_version="$(go env GOVERSION)"
+if [[ "$selected_go_version" != "$REQUIRED_GO_TOOLCHAIN" ]]; then
+  echo "Unexpected Go toolchain ${selected_go_version}; expected ${REQUIRED_GO_TOOLCHAIN}." >&2
+  exit 1
+fi
+
+# npm ci and go.mod/go.sum are the dependency locks. The pinned GOTOOLCHAIN
+# above makes the backend checks self-contained on fresh Cursor images.
 (cd frontend && npm ci --no-audit --no-fund)
 
-(cd backend && GOTOOLCHAIN=local go test ./... && GOTOOLCHAIN=local go build -buildvcs=false ./...)
+(cd backend && go test ./... && go build -buildvcs=false ./...)
 
 (cd frontend && npm run generate:types && git diff --exit-code -- src/lib/api/generated.ts)
 (cd frontend && npm run lint && npm test -- --run && npm run build)
