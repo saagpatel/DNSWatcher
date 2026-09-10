@@ -91,6 +91,9 @@ proxy addresses are known and stable.
 DNSWATCHER_TRUSTED_PROXY_CIDRS=10.0.0.0/8,192.0.2.64/32,2001:db8:1::/64
 ```
 
+IPv4-mapped prefixes such as `::ffff:10.0.0.0/120` are canonicalized to IPv4
+(`10.0.0.0/24`) so they match unmapped IPv4 peers.
+
 Remaining platform limits:
 
 - Render, Fly, Koyeb, and similar ingress do not ship a hard-coded trusted
