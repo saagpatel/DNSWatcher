@@ -331,6 +331,33 @@ func TestCreateTraceFailsClosedOnExactMalformedForwardedHeaders(t *testing.T) {
 	}); got != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 when malformed Forwarded poisons valid xff, got %d", got)
 	}
+
+	params := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
+		RateLimitPerMinute: 1,
+		Burst:              1,
+		TrustedProxyCIDRs:  trusted,
+	})
+	paramHandler := params.Handler()
+	malformedParams := []string{
+		`for=198.51.100.7;proto="https`,
+		`for=198.51.100.7;proto=ht"tp`,
+		`for=198.51.100.7;foo=bar;foo=baz`,
+		`for=198.51.100.7;proto=`,
+	}
+	if got := postTrace(t, paramHandler, "10.0.0.2:80", http.Header{"Forwarded": []string{malformedParams[0]}}); got != http.StatusOK {
+		t.Fatalf("expected 200 using the trusted peer for unbalanced proto quote, got %d", got)
+	}
+	for _, header := range malformedParams[1:] {
+		if got := postTrace(t, paramHandler, "10.0.0.2:80", http.Header{"Forwarded": []string{header}}); got != http.StatusTooManyRequests {
+			t.Fatalf("expected 429 for malformed Forwarded %q, got %d", header, got)
+		}
+	}
+	if got := postTrace(t, paramHandler, "10.0.0.2:80", http.Header{
+		"Forwarded": []string{`for=198.51.100.8;by=10.0.0.8;proto="https";host="example.com"`},
+	}); got != http.StatusOK {
+		t.Fatalf("expected 200 for valid quoted by/proto/host, got %d", got)
+	}
 }
 
 func postTrace(t *testing.T, handler http.Handler, remoteAddr string, header http.Header) int {

@@ -579,6 +579,88 @@ func TestResolveClientIdentity(t *testing.T) {
 			wantSource:      clientSourceForwarded,
 			wantDisposition: forwardedDispositionHonored,
 		},
+		{
+			name:       "unbalanced proto quote fails closed",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for=198.51.100.7;proto="https`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "embedded proto quote fails closed",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for=198.51.100.7;proto=ht"tp`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "duplicate extension param fails closed",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{"for=198.51.100.7;foo=bar;foo=baz"},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "empty proto value fails closed",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{"for=198.51.100.7;proto="},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "case-insensitive duplicate proto fails closed",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{"for=198.51.100.7;PROTO=https;proto=http"},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "valid by proto and host tokens remain honored",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{"for=198.51.100.7;by=10.0.0.8;proto=https;host=example.com"},
+			},
+			trusted:         trusted,
+			wantAddress:     "198.51.100.7",
+			wantSource:      clientSourceForwarded,
+			wantDisposition: forwardedDispositionHonored,
+		},
+		{
+			name:       "valid quoted by proto and host remain honored",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for=198.51.100.7;by="[2001:db8::1]";proto="https";host="example.com:443"`},
+			},
+			trusted:         trusted,
+			wantAddress:     "198.51.100.7",
+			wantSource:      clientSourceForwarded,
+			wantDisposition: forwardedDispositionHonored,
+		},
 	}
 
 	for _, tt := range tests {
