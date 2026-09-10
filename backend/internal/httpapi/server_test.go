@@ -226,8 +226,8 @@ func TestCreateTraceMalformedForwardedHeadersStayOnTrustedPeer(t *testing.T) {
 	if got := postTrace(t, handler, "10.0.0.2:80", malformed); got != http.StatusOK {
 		t.Fatalf("expected 200 using the trusted peer after malformed headers, got %d", got)
 	}
-	if got := postTrace(t, handler, "10.0.0.2:81", http.Header{"X-Forwarded-For": []string{"198.51.100.99, garbage"}}); got != http.StatusOK {
-		t.Fatalf("expected 200 for a usable client after skipping malformed xff hops, got %d", got)
+	if got := postTrace(t, handler, "10.0.0.2:81", http.Header{"X-Forwarded-For": []string{"198.51.100.99, garbage"}}); got != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when a mixed malformed xff hop keeps the direct-peer key, got %d", got)
 	}
 	if got := postTrace(t, handler, "10.0.0.2:82", malformed); got != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 when malformed headers keep the shared trusted-peer key, got %d", got)
@@ -292,6 +292,44 @@ func TestCreateTraceRejectsMalformedQuotesAndAllTrustedChains(t *testing.T) {
 	}
 	if got := postTrace(t, forwardedHandler, "10.0.0.4:80", http.Header{"X-Forwarded-For": []string{"198.51.100.30"}}); got != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 when right-to-left resolution still shares the untrusted client, got %d", got)
+	}
+}
+
+func TestCreateTraceFailsClosedOnExactMalformedForwardedHeaders(t *testing.T) {
+	result := contracts.TraceResult{QType: "A", FinalOutcome: contracts.FinalOutcome{Kind: "success"}, Hops: []contracts.Hop{{Index: 0}}, TotalDurationMS: 12}
+	trusted, invalid := httpapi.ParseTrustedProxyCIDRs([]string{"10.0.0.0/8"})
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid CIDRs: %v", invalid)
+	}
+	server := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
+		RateLimitPerMinute: 1,
+		Burst:              1,
+		TrustedProxyCIDRs:  trusted,
+	})
+	handler := server.Handler()
+
+	if got := postTrace(t, handler, "10.0.0.2:80", http.Header{"X-Forwarded-For": []string{"198.51.100.7, ???, 10.0.0.8"}}); got != http.StatusOK {
+		t.Fatalf("expected 200 using the trusted peer for malformed xff, got %d", got)
+	}
+	if got := postTrace(t, handler, "10.0.0.2:80", http.Header{"Forwarded": []string{"for=198.51.100.7, by=10.0.0.8"}}); got != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when Forwarded without for keeps the direct-peer key, got %d", got)
+	}
+
+	emptyHop := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
+		RateLimitPerMinute: 1,
+		Burst:              1,
+		TrustedProxyCIDRs:  trusted,
+	})
+	if got := postTrace(t, emptyHop.Handler(), "10.0.0.2:80", http.Header{"X-Forwarded-For": []string{"198.51.100.7,,10.0.0.8"}}); got != http.StatusOK {
+		t.Fatalf("expected 200 using the trusted peer for empty xff hop, got %d", got)
+	}
+	if got := postTrace(t, emptyHop.Handler(), "10.0.0.2:80", http.Header{
+		"Forwarded":       []string{"for=198.51.100.7, by=10.0.0.8"},
+		"X-Forwarded-For": []string{"198.51.100.7, 10.0.0.8"},
+	}); got != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when malformed Forwarded poisons valid xff, got %d", got)
 	}
 }
 
