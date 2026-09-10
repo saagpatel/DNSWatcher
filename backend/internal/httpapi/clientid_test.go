@@ -289,6 +289,149 @@ func TestResolveClientIdentity(t *testing.T) {
 			wantSource:      clientSourceRemoteAddr,
 			wantDisposition: forwardedDispositionAbsent,
 		},
+		{
+			name:       "valid quoted forwarded ipv4 is still honored",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for="198.51.100.1"`},
+			},
+			trusted:         trusted,
+			wantAddress:     "198.51.100.1",
+			wantSource:      clientSourceForwarded,
+			wantDisposition: forwardedDispositionHonored,
+		},
+		{
+			name:       "unbalanced opening forwarded quote is rejected",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for="198.51.100.1`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "unbalanced closing forwarded quote is rejected",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for=198.51.100.1"`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "doubled forwarded quotes are rejected",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for=""198.51.100.1""`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "trailing extra forwarded quote is rejected",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for="198.51.100.1""`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "quoted forwarded value with trailing escape is rejected",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for="198.51.100.1\`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "quoted xff hops are not stripped into client ips",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"X-Forwarded-For": []string{`"198.51.100.1`, `"198.51.100.2"`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "malformed",
+			wantDisposition: forwardedDispositionIgnoredMalformed,
+		},
+		{
+			name:       "all-trusted xff chain falls back to the direct peer",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"X-Forwarded-For": []string{"10.0.0.8, 10.0.0.9"},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "all_trusted_hops",
+			wantDisposition: forwardedDispositionIgnoredAllTrusted,
+		},
+		{
+			name:       "all-trusted forwarded chain falls back to the direct peer",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"Forwarded": []string{`for=10.0.0.8, for=10.0.0.9`},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "all_trusted_hops",
+			wantDisposition: forwardedDispositionIgnoredAllTrusted,
+		},
+		{
+			name:       "all-trusted ipv6 xff chain falls back to the direct peer",
+			remoteAddr: "[2001:db8:1::2]:80",
+			header: http.Header{
+				"X-Forwarded-For": []string{"2001:db8:1::8, 2001:db8:1::9"},
+			},
+			trusted:         trusted,
+			wantAddress:     "2001:db8:1::2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "all_trusted_hops",
+			wantDisposition: forwardedDispositionIgnoredAllTrusted,
+		},
+		{
+			name:       "single trusted xff hop cannot select a different trusted bucket",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"X-Forwarded-For": []string{"10.0.0.8"},
+			},
+			trusted:         trusted,
+			wantAddress:     "10.0.0.2",
+			wantSource:      clientSourceRemoteAddr,
+			wantReason:      "all_trusted_hops",
+			wantDisposition: forwardedDispositionIgnoredAllTrusted,
+		},
+		{
+			name:       "all-trusted xff still allows a usable forwarded client",
+			remoteAddr: "10.0.0.2:80",
+			header: http.Header{
+				"X-Forwarded-For": []string{"10.0.0.8, 10.0.0.9"},
+				"Forwarded":       []string{`for=198.51.100.7`},
+			},
+			trusted:         trusted,
+			wantAddress:     "198.51.100.7",
+			wantSource:      clientSourceForwarded,
+			wantDisposition: forwardedDispositionHonored,
+		},
 	}
 
 	for _, tt := range tests {
@@ -321,5 +464,36 @@ func TestCanonicalAddrStability(t *testing.T) {
 	v4 := resolveClientIdentity("192.0.2.9:8", nil, nil)
 	if mapped.Address != "192.0.2.9" || mapped.Address != v4.Address {
 		t.Fatalf("expected ipv4-mapped key 192.0.2.9, got %q and %q", mapped.Address, v4.Address)
+	}
+}
+
+func TestParseQuotedStringRejectsMalformedFraming(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+		ok    bool
+	}{
+		{name: "balanced ipv4", value: `"198.51.100.1"`, want: "198.51.100.1", ok: true},
+		{name: "balanced ipv6", value: `"[2001:db8::1]"`, want: "[2001:db8::1]", ok: true},
+		{name: "escaped inner quote", value: `"198.51.100.1\""`, want: `198.51.100.1"`, ok: true},
+		{name: "unbalanced opening", value: `"198.51.100.1`, ok: false},
+		{name: "unbalanced closing", value: `198.51.100.1"`, ok: false},
+		{name: "doubled quotes", value: `""198.51.100.1""`, ok: false},
+		{name: "trailing extra quote", value: `"198.51.100.1""`, ok: false},
+		{name: "trailing backslash", value: `"198.51.100.1\`, ok: false},
+		{name: "empty quotes", value: `""`, want: "", ok: true},
+		{name: "unquoted token", value: "198.51.100.1", want: "198.51.100.1", ok: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := unquoteForwardedValue(tt.value)
+			if ok != tt.ok {
+				t.Fatalf("ok: got %v, want %v (value %q -> %q)", ok, tt.ok, tt.value, got)
+			}
+			if tt.ok && got != tt.want {
+				t.Fatalf("value: got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

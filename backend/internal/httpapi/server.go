@@ -246,7 +246,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func (s *Server) logForwardedHeaderDisposition(identity clientIdentity, clientLogKey string) {
 	switch identity.IgnoredReason {
-	case "malformed", "conflicting_forwarded_headers":
+	case "malformed", "conflicting_forwarded_headers", "all_trusted_hops":
 		s.logger.Info("forwarded_header_ignored",
 			slog.String("reason", identity.IgnoredReason),
 			slog.String("client", clientLogKey),
