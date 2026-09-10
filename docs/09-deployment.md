@@ -80,6 +80,34 @@ Evidence to capture:
 - Logs contain a hashed client key and outcome metadata, not raw queried
   domains.
 
+## Trusted proxy client identity
+
+Rate-limit keys use the direct TCP peer by default. `Forwarded` and
+`X-Forwarded-For` are honored only when that immediate peer belongs to
+`DNSWATCHER_TRUSTED_PROXY_CIDRS`. Leave the list empty unless the platform
+proxy addresses are known and stable.
+
+```sh
+DNSWATCHER_TRUSTED_PROXY_CIDRS=10.0.0.0/8,192.0.2.64/32,2001:db8:1::/64
+```
+
+Remaining platform limits:
+
+- Render, Fly, Koyeb, and similar ingress do not ship a hard-coded trusted
+  proxy list in this repo. Operators must supply the CIDRs their host
+  actually uses.
+- Until those CIDRs are configured, every client behind the same reverse
+  proxy shares one rate-limit bucket: the proxy's address.
+- Platform-specific headers such as `Fly-Client-IP`, `CF-Connecting-IP`, and
+  `X-Real-IP` are never trusted.
+- If `Forwarded` and `X-Forwarded-For` both yield usable clients and they
+  disagree, both are ignored and the direct peer is used.
+- A trusted proxy must overwrite or append the header it maintains. A
+  client-supplied header the proxy does not touch remains spoofable; when
+  the two headers conflict, DNSWatcher fails closed to the peer.
+
+Do not loosen this policy to make a hosted rate-limit check pass.
+
 ## Render deploy steps
 
 1. Install and log in to the Render CLI or use the Render dashboard.
