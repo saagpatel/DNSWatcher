@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +42,10 @@ func (s *blockingTracer) Trace(ctx context.Context, _ contracts.TraceRequest) (c
 	case <-ctx.Done():
 		return contracts.TraceResult{}, ctx.Err()
 	}
+}
+
+func silentLogger() *slog.Logger {
+	return slog.New(slog.NewJSONHandler(io.Discard, nil))
 }
 
 func TestCreateTraceRejectsInvalidMethodAndContentType(t *testing.T) {
@@ -119,7 +124,7 @@ func TestCreateTraceRateLimitAndLoggingDoNotLeakDomain(t *testing.T) {
 
 func TestCreateTraceRateLimitUsesDirectPeerByDefault(t *testing.T) {
 	result := contracts.TraceResult{QType: "A", FinalOutcome: contracts.FinalOutcome{Kind: "success"}, Hops: []contracts.Hop{{Index: 0}}, TotalDurationMS: 12}
-	server := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{RateLimitPerMinute: 1, Burst: 1})
+	server := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{Logger: silentLogger(), RateLimitPerMinute: 1, Burst: 1})
 	handler := server.Handler()
 
 	first := postTrace(t, handler, "203.0.113.10:1234", http.Header{"X-Forwarded-For": []string{"198.51.100.30"}})
@@ -143,6 +148,7 @@ func TestCreateTraceIgnoresSpoofedHeadersFromUntrustedPeers(t *testing.T) {
 		t.Fatalf("unexpected invalid CIDRs: %v", invalid)
 	}
 	server := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
 		RateLimitPerMinute: 1,
 		Burst:              1,
 		TrustedProxyCIDRs:  trusted,
@@ -174,6 +180,7 @@ func TestCreateTraceTrustedProxyChainRateLimitsCanonicalClient(t *testing.T) {
 		t.Fatalf("unexpected invalid CIDRs: %v", invalid)
 	}
 	server := httpapi.NewServer(stubTracer{result: result}, httpapi.Config{
+		Logger:             silentLogger(),
 		RateLimitPerMinute: 1,
 		Burst:              1,
 		TrustedProxyCIDRs:  trusted,
