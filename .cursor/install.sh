@@ -21,13 +21,12 @@ readonly GO_TOOLCHAIN="${REQUIRED_GO_TOOLCHAIN}+auto"
 
 node_major="$(node -p 'process.versions.node.split(".")[0]')"
 node_minor="$(node -p 'process.versions.node.split(".")[1]')"
+node_patch="$(node -p 'process.versions.node.split(".")[2]')"
 node_version="$(node --version)"
-if (( node_major < 22 )) || (( node_major == 22 && node_minor < 13 )); then
-  echo "Unsupported Node.js runtime ${node_version}; use Node 22.13+ or Node 24+." >&2
-  exit 1
-fi
-if (( node_major == 23 )); then
-  echo "Unsupported odd Node.js runtime ${node_version}; use Node 22.13+ or Node 24+." >&2
+# Match the committed jsdom engine: ^22.22.2 || ^24.15.0 || >=26.0.0.
+if ! (( (node_major == 22 && (node_minor > 22 || (node_minor == 22 && node_patch >= 2))) ||
+        (node_major == 24 && node_minor >= 15) || node_major >= 26 )); then
+  echo "Unsupported Node.js runtime ${node_version}; use Node 22.22.2+, Node 24.15+, or Node 26+." >&2
   exit 1
 fi
 
