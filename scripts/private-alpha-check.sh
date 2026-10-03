@@ -10,14 +10,12 @@ fi
 
 python3 - "$BASE_URL" <<'PY'
 import json
-import random
 import sys
 import time
 import urllib.error
 import urllib.request
 
 base_url = sys.argv[1].rstrip("/")
-client_ip = f"198.51.100.{random.randint(1, 254)}"
 
 
 def request(method, path, payload=None, expected_status=None, headers=None):
@@ -56,13 +54,12 @@ for _ in range(6):
         "POST",
         "/api/v1/traces",
         {"domain": "bad..domain", "qtype": "A"},
-        headers={"X-Forwarded-For": client_ip},
     )
     statuses.append((status, body.get("error"), latency))
 
 if not any(status == 429 and error == "rate_limited" for status, error, _ in statuses):
     raise SystemExit(f"expected one request to hit rate_limited 429, got {statuses}")
-print(f"ok: rate limit returned 429 for synthetic client {client_ip}")
+print("ok: rate limit returned 429 for the connecting client")
 
 status, health, latency = request("GET", "/healthz", expected_status=200)
 if health.get("status") != "ok":

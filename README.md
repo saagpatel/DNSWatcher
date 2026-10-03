@@ -49,7 +49,7 @@ During local development, the Vite frontend proxies `/api` to the Go backend.
 - Preferred runtime class: single-region container or VM
 - Backend serving model: stateless HTTP
 - Frontend serving model: static assets, ideally same-origin in production
-- Public service posture: conservative timeouts, explicit rate limiting, and public-IP-only DNS egress
+- Public service posture: conservative timeouts, explicit rate limiting keyed by direct peer unless trusted proxy CIDRs are configured, and public-IP-only DNS egress
 - Deployment proof: follow `docs/08-runtime-verification.md` before treating a host as production-ready
 - Recommended private-alpha host: Render Free Web Service in `oregon`
 - Deployment assets: `Dockerfile`, `render.yaml`, and `scripts/runtime-smoke.sh`

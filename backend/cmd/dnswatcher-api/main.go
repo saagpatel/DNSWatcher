@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"dnswatcher/backend/internal/httpapi"
@@ -23,6 +24,10 @@ func main() {
 			staticDir = ""
 		}
 	}
+	trustedProxies, invalidCIDRs := httpapi.ParseTrustedProxyCIDRs(envCSV("DNSWATCHER_TRUSTED_PROXY_CIDRS"))
+	if len(invalidCIDRs) > 0 {
+		log.Fatalf("invalid DNSWATCHER_TRUSTED_PROXY_CIDRS values: %s", strings.Join(invalidCIDRs, ", "))
+	}
 	server := httpapi.NewServer(engine, httpapi.Config{
 		Logger:              logger,
 		BodyLimitBytes:      envInt64("DNSWATCHER_BODY_LIMIT_BYTES", 2048),
@@ -34,6 +39,7 @@ func main() {
 		WriteTimeout:        envDuration("DNSWATCHER_WRITE_TIMEOUT", 30*time.Second),
 		IdleTimeout:         envDuration("DNSWATCHER_IDLE_TIMEOUT", 60*time.Second),
 		StaticDir:           staticDir,
+		TrustedProxyCIDRs:   trustedProxies,
 	})
 	httpServer := httpapi.StdlibServer(server.Handler(), httpapi.Config{
 		ReadHeaderTimeout: envDuration("DNSWATCHER_READ_HEADER_TIMEOUT", 5*time.Second),
@@ -77,6 +83,23 @@ func envInt64(key string, fallback int64) int64 {
 		return fallback
 	}
 	return parsed
+}
+
+func envCSV(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
 }
 
 func envDuration(key string, fallback time.Duration) time.Duration {
