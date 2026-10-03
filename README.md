@@ -28,15 +28,41 @@ DNSWatcher is the first Systems Explainer Arcade flagship: **DNS: Follow the Que
 - `backend/` holds the Go trace engine, deterministic DNS lab, and HTTP API.
 - `frontend/` holds the React UI, generated types, fixtures, and tests.
 
-## Local workflow
+## Local workflow and verification
 
-1. `make install`
-2. `make generate`
-3. `make test`
-4. `cd frontend && npm run dev`
-5. `cd backend && go run ./cmd/dnswatcher-api`
+Run from the repository root with Go 1.26.2+ (see `backend/go.mod`) and Node
+22.22.2+ on the Node 22 line, or 24.15+ on Node 24 (the locked jsdom requires
+`^22.22.2 || ^24.15.0 || >=26.0.0`). Install dependencies without rewriting the
+committed manifests/lockfile:
 
-During local development, the Vite frontend proxies `/api` to the Go backend.
+```bash
+(cd frontend && npm ci)
+(cd backend && go mod download)
+# Focused deterministic checks for the changed area:
+(cd backend && go test ./internal/trace)
+(cd frontend && npm test -- --run src/lib/presenters.test.ts)
+# Full source verification, matching the CI lanes:
+make test
+(cd frontend && npm run lint)
+make build
+make generate
+git diff --exit-code -- frontend/src/lib/api/generated.ts
+```
+
+[CI](.github/workflows/ci.yml) is the authoritative full check sequence. Backend
+tests use a local DNS lab rather than public DNS; frontend tests use fixtures and
+jsdom. `make install` is a dependency-maintenance convenience (`npm install` and
+`go mod tidy`), so it can update dependency files and is not the locked setup lane.
+
+For local UI development, run `cd frontend && npm run dev` and, when actual DNS
+queries are authorized, `cd backend && go run ./cmd/dnswatcher-api`. Vite proxies
+`/api` to the backend. For UI changes, inspect the affected query/trace flow,
+truth note, support substeps, JSON export, narrow layout, and reduced motion in a
+browser; jsdom tests do not prove browser behavior. The
+[runtime checklist](docs/08-runtime-verification.md) covers live DNS and host
+verification separately. `runtime-smoke`, `private-alpha-check`, Docker, and
+Render validation are optional environment/provider lanes, not routine fixture
+checks; do not run them or deploy as a documentation smoke test.
 
 ## Frontend test note
 
