@@ -65,7 +65,9 @@ BASE_URL=<candidate> make private-alpha-check
 ```
 
 That command runs the normal runtime smoke, then verifies hosted rate limiting
-with a synthetic client and checks `/healthz` remains responsive afterward.
+with repeated requests from the checker and checks `/healthz` remains
+responsive afterward. Forwarded client headers are not a synthetic identity
+unless `DNSWATCHER_TRUSTED_PROXY_CIDRS` includes the immediate peer.
 
 ## Release gate
 

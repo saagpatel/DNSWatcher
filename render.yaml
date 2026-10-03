@@ -19,6 +19,8 @@ services:
         value: "5"
       - key: DNSWATCHER_MAX_CONCURRENT_TRACES
         value: "8"
+      - key: DNSWATCHER_TRUSTED_PROXY_CIDRS
+        value: ""
       - key: DNSWATCHER_READ_HEADER_TIMEOUT
         value: 5s
       - key: DNSWATCHER_READ_TIMEOUT
